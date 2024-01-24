@@ -34,28 +34,22 @@ class Position:
         return f"{self.latitude}N, {self.longitude}E"
     
 class ZtmStop:
-    stop_id : int
+    id : str
     order : str
-    group_name : str
+    name : str
     position : Position
+    street : str
+    direction : str
 
-    def __init__(self, 
-                 stop_id : int, 
-                 order : str,
-                 group_name : str,
-                 street_id : str,
-                 longitude : float, 
-                 latitude : float,
-                 direction : str
-                 #nie wiem czy jest mi na coś ta data potrzebna 
-                 ):
-        self.position = Position(longitude, latitude)
-        self.name = group_name
-        self.id = stop_id
-        self.order = order
-        self.street = street_id
-        self.direction = direction
+    def __init__(self, params : list):
+        self.id = params[0]
+        self.order = params[1]
+        self.name = params[2]
+        self.position = Position(params[5], params[4])
+        self.street = params[3]
+        self.direction = params[6]
     
     def __str__(self) -> str:
-        return f"Przystanek: {self.name} {self.order}\n id przystanku: {self.id}\n pozycja {self.position}\n \
-                ulica {self.street}, kierunek: {self.direction}"
+        return f"Przystanek: {self.name} {self.order}\nid przystanku: {self.id}\npozycja {self.position}\n\
+ulica {self.street}, kierunek: {self.direction}"
+# tu weź coś zrób
