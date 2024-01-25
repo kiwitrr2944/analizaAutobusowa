@@ -47,9 +47,9 @@ class ZtmStop:
         self.name = params[2]
         self.position = Position(params[5], params[4])
         self.street = params[3]
-        self.direction = params[6]
-    
+        self.direction = params[6] 
+        
     def __str__(self) -> str:
         return f"Przystanek: {self.name} {self.order}\nid przystanku: {self.id}\npozycja {self.position}\n\
 ulica {self.street}, kierunek: {self.direction}"
-# tu weź coś zrób
+# weź to popraw jakoś

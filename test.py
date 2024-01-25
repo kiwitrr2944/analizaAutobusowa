@@ -1,13 +1,13 @@
 from getdata import *
-from ztmclasses import Position
+from ztmclasses import Position, ZtmStop
 
-pos = Position(0.0, 0.0)
-pos2 = Position(52.22, 21.01)
-print(pos.distance(pos2))
-
-# przystanek, slupek = input().split(" ")
+name = input()
 # print(get_lines_from_stop(przystanek, slupek))
 # json_print(find_stops_by_name(przystanek))
 # print(get_stop_id(przystanek))
-lista = all_stops_data()
-print(lista[0])
+stops = all_stops_data()
+for stop in stops:
+    if stop.name == name:
+        print(stop)
+        print(get_lines_from_stop(stop.id, stop.order))
+        print("----------------")

@@ -105,6 +105,7 @@ def all_stops_data() -> list:
             for attr in stop:
                 params.append(attr['value'])
             ret.append(ZtmStop(params))
+            
         return ret
     
 def find_stops_by_name(nazwa):
