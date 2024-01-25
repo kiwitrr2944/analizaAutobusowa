@@ -1,5 +1,6 @@
 import datetime
 import dis
+from re import S
 from geopy.distance import distance
 
 class Position:
@@ -53,3 +54,20 @@ class ZtmStop:
         return f"Przystanek: {self.name} {self.order}\nid przystanku: {self.id}\npozycja {self.position}\n\
 ulica {self.street}, kierunek: {self.direction}"
 # weź to popraw jakoś
+
+
+class ZtmRoute:
+    line : str
+    name : str
+    stops : list
+    
+    class ZtmRouteStop:
+        no : str 
+        distance_from_origin : int
+        stop : ZtmStop
+        status : int
+        
+        def __init__(self, data : str):
+            pass          
+    
+    
