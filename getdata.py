@@ -1,7 +1,7 @@
 from requests import get
 from json import dumps
 
-from ztmclasses import ZtmStop
+from ztmclasses import ZtmRoute, ZtmStop
 
 apikey = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
 stop_to_id = "https://api.um.warszawa.pl/api/action/dbtimetable_get/?id=b27f4c17-5c50-4a5b-89dd-236b282bc499"
@@ -9,7 +9,7 @@ allstops = "https://api.um.warszawa.pl/api/action/dbstore_get/?id=1c08a38c-ae09-
 lines_on_stop = "https://api.um.warszawa.pl/api/action/dbtimetable_get?id=88cd555f-6f31-43ca-9de4-66c479ad5942"
 routes = "https://api.um.warszawa.pl/api/action/public_transport_routes/?"
 dict_url = "https://api.um.warszawa.pl/api/action/public_transport_dictionary/?apikey=916c4bfe-396c-4203-b87b-5a68889e9dd5"
-
+timetables = ""
 
 def json_print(text : str) -> None:
     """Wrapper for printing indented data for debugging
@@ -66,6 +66,9 @@ def routes_url() -> str:
         str: url
     """
     return f"{routes}apikey={apikey}"
+
+def timetables_url() -> str:
+    return f"{timetables}&apikey={apikey}"
 
 def get_stop_id(stop_name : str) -> int:
     """Converts stop_name into stop_id
@@ -125,8 +128,15 @@ def get_routes():
         str: TODO ta konwersja
     """
     with get(routes_url()) as response:
-        return response.json()['result']
-    
+        routes = response.json()['result']
+        ret = []
+        for line in routes:
+            for route in routes[line]:
+                a = ZtmRoute(line, route, routes[line][route])
+                ret.append(a)
+            return ret
+
+
 def get_dictionary():
     with get(dict_url) as response:
         return response.json()

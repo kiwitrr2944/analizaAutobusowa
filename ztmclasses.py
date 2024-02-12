@@ -55,19 +55,34 @@ class ZtmStop:
 ulica {self.street}, kierunek: {self.direction}"
 # weź to popraw jakoś
 
+class ZtmRouteStop:
+    no : str 
+    distance_from_origin : int
+    stop : tuple
+    status : int
+
+    def __init__(self, args : list):
+        self.no = args[0]
+        self.stop = tuple(args[1:2])
+        self.distance_from_origin = args[3]
+        self.status = args[4]
 
 class ZtmRoute:
     line : str
     name : str
     stops : list
     
-    class ZtmRouteStop:
-        no : str 
-        distance_from_origin : int
-        stop : ZtmStop
-        status : int
+    
+    def __init__(self, line : str, name : str, data : dict):
+        self.line = line
+        self.name = name
+        stops = []
         
-        def __init__(self, data : str):
-            pass          
+        for stop in data:
+            args = [stop]
+            for arg in data[stop]:
+                args.append(data[stop][arg])
+            
+            stops.append(ZtmRouteStop(args))
     
     

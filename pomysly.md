@@ -5,3 +5,4 @@
 * zespół przystanków, który ma najbardziej rozbite te przystanki (suma odległości? otoczka wypukła o największej powierzchni?)
 * przystanek z najczęstszymi kursami
 * najbardziej zakorkowany odcinek między dwoma przystankami (max odchylenie standardowe prędkości godzin normalnych i godzin szczytu?) 
+* autobus który spotyka najwięcej możliwie linii

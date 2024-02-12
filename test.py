@@ -12,8 +12,8 @@ from ztmclasses import Position, ZtmStop
         # print(get_lines_from_stop(stop.id, stop.order))
         # print("----------------")
       
-# linia = input()
-# xd = get_routes()
-# json_print(xd[linia])
+linia = input("podaj linie: ")
+xd = get_routes()
+json_print(xd)
 
-json_print(get_dictionary())
+#json_print(get_dictionary())
