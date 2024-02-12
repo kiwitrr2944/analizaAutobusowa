@@ -172,10 +172,13 @@ def get_dictionary():
         return response.json()
     
 def live_test():
-    url = "https://api.um.warszawa.pl/api/action/busestrams_get/?resource_id=%20f2e5503e927d-4ad3-9500-4ab9e55deb59&apikey=916c4bfe-396c-4203-b87b-5a68889e9dd5&type=1"
+    url = "https://api.um.warszawa.pl/api/action/busestrams_get/"
+    pms = base_params.copy()
+    pms['resource_id'] = '%20f2e5503e927d-4ad3-9500-4ab9e55deb59'
+    pms['type'] = '1'
     
-    with get(url) as response:
+    with get(url, params=pms) as response:
         response = response.json()['result']
-        with open("test.csv", "r") as file:
+        with open("test.csv", "w") as file:
             for data in response:
-                pass
+                print(data)
