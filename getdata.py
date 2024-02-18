@@ -1,4 +1,3 @@
-from decimal import MAX_EMAX
 from requests import get
 from json import dumps
 import typing
@@ -15,10 +14,6 @@ dbstore_url = "https://api.um.warszawa.pl/api/action/dbstore_get/"
 routes_url = "https://api.um.warszawa.pl/api/action/public_transport_routes/"
 dict_url = "https://api.um.warszawa.pl/api/action/public_transport_dictionary/"
 live_url = "https://api.um.warszawa.pl/api/action/busestrams_get/"
-
-stop_to_id = "https://api.um.warszawa.pl/api/action/dbtimetable_get/?id=b27f4c17-5c50-4a5b-89dd-236b282bc499"
-lines_on_stop = "https://api.um.warszawa.pl/api/action/dbtimetable_get/?id=88cd555f-6f31-43ca-9de4-66c479ad5942"
-dict_url = "https://api.um.warszawa.pl/api/action/public_transport_dictionary/?apikey=916c4bfe-396c-4203-b87b-5a68889e9dd5"
 
 base_params = {"apikey": APIKEY}
 
@@ -113,6 +108,9 @@ def get_routes():
     response = gt_routes()
     routes = response['result']
     ret = []
+    json_print(routes)
+    
+     
     for line in routes:
         for route in routes[line]:
             a = ZtmRoute(line, route, routes[line][route])
@@ -137,13 +135,20 @@ def live_test():
     header = []
 
     for attr in response[0]:
-         header.append(attr)
-    
+        header.append(attr) 
+         
+    while True:
+        try:
+            czas = datetime.fromisoformat(response[0]['Time'])
+            break
+        except:
+            response = get(live_url, params=pms).json()['result']
+
     totalsec = 0
     cnt = 0
     goodcnt = 0
     filepath = f"./DATA/LIVE/{time_now.timetz()}"
-    
+    print(response[0])
     
     with open(filepath, "w") as file:
         wr = csv.writer(file)
@@ -160,7 +165,7 @@ def live_test():
                 continue
             
             goodcnt += 1
-            print(c.total_seconds())
+            # print(c.total_seconds())
             
             lista = []
             
