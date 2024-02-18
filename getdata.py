@@ -1,10 +1,10 @@
-from asyncio.constants import DEBUG_STACK_DEPTH
-from email.mime import base
 from requests import get
 from json import dumps
 import typing
-import pandas
+import pandas as pd
 from ztmclasses import ZtmRoute, ZtmStop
+import csv 
+
 
 APIKEY = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
 dbtimetable_url = "https://api.um.warszawa.pl/api/action/dbtimetable_get/"
@@ -38,7 +38,7 @@ def all_stops_url():
     pms = base_params.copy()
     pms['id'] = "1c08a38c-ae09-46d2-8926-4f9d25cb0630"
     
-    return get(dbstore_url, params=pms).json()
+    return get(dbstore_url, params=pms).json() 
 
 def lines_on_stop_url(stop, pos : str) -> dict:
     """Gives url to data about lines on stop. Stop can be 
@@ -79,6 +79,7 @@ def stop_id_url(stop_name) -> dict:
     pms['id'] = "b27f4c17-5c50-4a5b-89dd-236b282bc499"
 
     return get(dbtimetable_url, pms).json()
+
 
 def gt_routes() -> dict:
     """Url for all routes of public transport
@@ -128,8 +129,6 @@ def get_lines_from_stop(przystanek : str, slupek : str) -> list:
     for linia in data:
         linia = linia['values'][0]
         linie.append(linia['value'])
-   
-    print(linie)
 
     return linie  
 
@@ -141,15 +140,25 @@ def all_stops_data() -> list:
     """
     stops = all_stops_url()['result']
     ret = []
-    for stop in stops:
-        stop = stop['values']
-        params = []
-        for attr in stop:
-            params.append(attr['value'])
-        ret.append(ZtmStop(params))
-        print(ret[-1])
+    header = []
+    
+    for attr in stops[0]['values']:
+        header.append(attr['key'])
         
-    return ret
+    with open('./DATA/allstops.csv', 'w') as file:
+        wr = csv.writer(file)
+        wr.writerow(header)
+        for stop in stops:
+            stop = stop['values']
+            params = []
+            
+            for attr in stop:    
+                params.append(attr['value'])
+            
+            wr.writerow(params)
+            ret.append(ZtmStop(params))
+        
+        return ret
     
 def get_routes():
     """Returns all routes as list of ZtmRoute objects
@@ -164,6 +173,7 @@ def get_routes():
         for route in routes[line]:
             a = ZtmRoute(line, route, routes[line][route])
             ret.append(a)
+    
     return ret
 
 
@@ -180,5 +190,6 @@ def live_test():
     with get(url, params=pms) as response:
         response = response.json()['result']
         with open("test.csv", "w") as file:
+            wr = csv.writer(file)
             for data in response:
                 print(data)
