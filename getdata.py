@@ -1,3 +1,4 @@
+from decimal import MAX_EMAX
 from requests import get
 from json import dumps
 import typing
@@ -7,17 +8,17 @@ import csv
 from datetime import datetime
 
 
-APIKEY = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
+APIKEY : str = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
+MAXTIMEDIFF : float = 75.0
 dbtimetable_url = "https://api.um.warszawa.pl/api/action/dbtimetable_get/"
 dbstore_url = "https://api.um.warszawa.pl/api/action/dbstore_get/"
 routes_url = "https://api.um.warszawa.pl/api/action/public_transport_routes/"
 dict_url = "https://api.um.warszawa.pl/api/action/public_transport_dictionary/"
+live_url = "https://api.um.warszawa.pl/api/action/busestrams_get/"
 
 stop_to_id = "https://api.um.warszawa.pl/api/action/dbtimetable_get/?id=b27f4c17-5c50-4a5b-89dd-236b282bc499"
 lines_on_stop = "https://api.um.warszawa.pl/api/action/dbtimetable_get/?id=88cd555f-6f31-43ca-9de4-66c479ad5942"
 dict_url = "https://api.um.warszawa.pl/api/action/public_transport_dictionary/?apikey=916c4bfe-396c-4203-b87b-5a68889e9dd5"
-
-live = "https://api.um.warszawa.pl/api/action/busestrams_get/?resource_id="
 
 base_params = {"apikey": APIKEY}
 
@@ -31,28 +32,12 @@ def json_print(text : str) -> None:
     print(text)
     
 def all_stops_url():
-    """Gives url to data about all stops
-
-    Returns:
-        str: url
-    """
     pms = base_params.copy()
     pms['id'] = "1c08a38c-ae09-46d2-8926-4f9d25cb0630"
     
     return get(dbstore_url, params=pms).json() 
 
 def lines_on_stop_url(stop, pos : str) -> dict:
-    """Gives url to data about lines on stop. Stop can be 
-    either name (conversion) or stop_id. 
-
-    Args:
-        stop (): stop_name or stop_id
-        pos (str): number of "slupek"
-
-    Returns:
-        str: url
-    """
-
     try:
         stopint = int(stop)
     except:
@@ -66,15 +51,6 @@ def lines_on_stop_url(stop, pos : str) -> dict:
     return get(dbtimetable_url, pms).json()
 
 def stop_id_url(stop_name) -> dict:
-    """Url for converter stop_name->stop_id
-    !!!AMBIGOUS!!!
-
-    Args:
-        stop_name (str): stop_name to convert
-
-    Returns:
-        str: url
-    """
     pms = base_params.copy()
     pms['name'] = stop_name
     pms['id'] = "b27f4c17-5c50-4a5b-89dd-236b282bc499"
@@ -83,11 +59,6 @@ def stop_id_url(stop_name) -> dict:
 
 
 def gt_routes() -> dict:
-    """Url for all routes of public transport
-
-    Returns:
-        str: url
-    """
     return get(routes_url, params=base_params).json()
 
 
@@ -95,33 +66,14 @@ def live_data() -> dict:
     pms = base_params.copy()
     pms['type'] = '1'
     pms['resource_id'] = "%20f2e5503e927d-4ad3-9500-4ab9e55deb59"
-    return get(live, params=pms).json()
+    return get(live_url, params=pms).json()
 
 
 def get_stop_id(stop_name : str) -> int:
-    """Converts stop_name into stop_id
-    !!!AMBIGOUS!!!
-
-    Args:
-        stop_name(str): stop_name to convert
-
-    Returns:
-        str: 4-digit code - id of the stop group with given name
-    """
     response = stop_id_url(stop_name)
     return response['result'][0]['values'][0]['value']
     
 def get_lines_from_stop(przystanek : str, slupek : str) -> list:
-    """Lists all lines on given stop
-
-    Args:
-        stop (str): stop_name or stop_id
-        pos (str): number of "slupek"
-        
-    Returns:
-        list: all no. of lines departing in str format 
-    """
-    
     response = lines_on_stop_url(przystanek, slupek)
     linie = []
     data = response['result']
@@ -132,11 +84,6 @@ def get_lines_from_stop(przystanek : str, slupek : str) -> list:
     return linie  
 
 def all_stops_data() -> list:
-    """Data about all stops in format:
-
-    Returns:
-        list: list of ZtmStop objects
-    """
     stops = all_stops_url()['result']
     ret = []
     header = []
@@ -144,7 +91,9 @@ def all_stops_data() -> list:
     for attr in stops[0]['values']:
         header.append(attr['key'])
         
-    with open('./DATA/allstops.csv', 'w') as file:
+    filepath = "./DATA/allstops.csv"
+        
+    with open(filepath, 'w') as file:
         wr = csv.writer(file)
         wr.writerow(header)
         for stop in stops:
@@ -156,15 +105,11 @@ def all_stops_data() -> list:
             
             wr.writerow(params)
             ret.append(ZtmStop(params))
-        
-        return ret
+
+    return ret
+
     
 def get_routes():
-    """Returns all routes as list of ZtmRoute objects
-
-    Returns:
-        str: TODO ta konwersja
-    """
     response = gt_routes()
     routes = response['result']
     ret = []
@@ -180,42 +125,47 @@ def get_dictionary():
     with get(dict_url) as response:
         return response.json()
     
-def live_test():
-    url = "https://api.um.warszawa.pl/api/action/busestrams_get/"
+    
+def live_test():    
     pms = base_params.copy()
     pms['resource_id'] = '%20f2e5503e927d-4ad3-9500-4ab9e55deb59'
     pms['type'] = '1'
     
-    with get(url, params=pms) as response:
-        response = response.json()['result']
-        header = []
+    time_now = datetime.now()
 
-        for attr in response[0]:
-            header.append(attr)
+    response = get(live_url, params=pms).json()['result']
+    header = []
+
+    for attr in response[0]:
+         header.append(attr)
+    
+    totalsec = 0
+    cnt = 0
+    goodcnt = 0
+    filepath = f"./DATA/LIVE/{time_now.timetz()}"
+    
+    
+    with open(filepath, "w") as file:
+        wr = csv.writer(file)
+        wr.writerow(header)
         
-        totalsec = 0
-        cnt = 0
-        goodcnt = 0
-        
-        with open("test.csv", "w") as file:
-            wr = csv.writer(file)
-            wr.writerow(header)
+        for data in response:
+            czas = datetime.fromisoformat(data['Time'])
+            c = time_now - czas
             
-            for data in response:
-                czas = datetime.fromisoformat(data['Time'])
-                c = datetime.now() - czas
-                
-                totalsec += c.total_seconds()
-                cnt += 1
-                if c.total_seconds() >= 75:
-                    continue
-                goodcnt += 1
-                print(c.total_seconds())
-                
-                lista = []
-                
-                for attr in header:
-                    lista.append(data[attr])
-                wr.writerow(lista)
-        
-        print(goodcnt/cnt)
+            totalsec += c.total_seconds()
+            cnt += 1
+            
+            if c.total_seconds() >= MAXTIMEDIFF:
+                continue
+            
+            goodcnt += 1
+            print(c.total_seconds())
+            
+            lista = []
+            
+            for attr in header:
+                lista.append(data[attr])
+            wr.writerow(lista)
+    
+    print(goodcnt/cnt)
