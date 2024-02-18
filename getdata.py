@@ -4,6 +4,7 @@ import typing
 import pandas as pd
 from ztmclasses import ZtmRoute, ZtmStop
 import csv 
+from datetime import datetime
 
 
 APIKEY = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
@@ -87,12 +88,10 @@ def gt_routes() -> dict:
     Returns:
         str: url
     """
-    
     return get(routes_url, params=base_params).json()
 
 
 def live_data() -> dict:
-    
     pms = base_params.copy()
     pms['type'] = '1'
     pms['resource_id'] = "%20f2e5503e927d-4ad3-9500-4ab9e55deb59"
@@ -189,7 +188,34 @@ def live_test():
     
     with get(url, params=pms) as response:
         response = response.json()['result']
+        header = []
+
+        for attr in response[0]:
+            header.append(attr)
+        
+        totalsec = 0
+        cnt = 0
+        goodcnt = 0
+        
         with open("test.csv", "w") as file:
             wr = csv.writer(file)
+            wr.writerow(header)
+            
             for data in response:
-                print(data)
+                czas = datetime.fromisoformat(data['Time'])
+                c = datetime.now() - czas
+                
+                totalsec += c.total_seconds()
+                cnt += 1
+                if c.total_seconds() >= 75:
+                    continue
+                goodcnt += 1
+                print(c.total_seconds())
+                
+                lista = []
+                
+                for attr in header:
+                    lista.append(data[attr])
+                wr.writerow(lista)
+        
+        print(goodcnt/cnt)
