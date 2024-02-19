@@ -156,12 +156,12 @@ def get_routes(dirpath='.'):
     dirpath = f"{dirpath}/DATA/ROUTES/"
     
     for line in response:
-        dirpath = dirpath + line + '/'
+        dirpath2 = dirpath + line + '/'
 
-        os.makedirs(dirpath, exist_ok=True)          
+        os.makedirs(dirpath2, exist_ok=True)          
         
         for route in response[line]:
-            filepath = dirpath + route + '.csv'
+            filepath = dirpath2 + route + '.csv'
             
             route_list = response[line][route]
             header = []
@@ -174,9 +174,15 @@ def get_routes(dirpath='.'):
                         header = [i for i in route_list[stop]]
                         wr.writerow(header)
                     params = [route_list[stop][i] for i in header]
-                    wr.writerow(params)    
-
-
+                    wr.writerow(params)
+                
+            print(line, route)
+            df = pd.read_csv(filepath)
+            df = df.sort_values(by=['odleglosc'])
+            print(df)
+            df.to_csv(filepath)
+            
+            
 def get_timetable(dirpath='.'):
     if not genericpath.exists(f"{dirpath}/DATA/allstops.csv"):
         get_all_stops()
