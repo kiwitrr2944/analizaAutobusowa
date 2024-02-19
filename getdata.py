@@ -5,7 +5,7 @@ import pandas as pd
 from ztmclasses import ZtmRoute, ZtmStop
 import csv 
 from datetime import datetime
-
+import time
 
 APIKEY : str = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
 MAXTIMEDIFF : float = 75.0
@@ -25,17 +25,19 @@ def json_print(text : str) -> None:
     """
     text = dumps(text, sort_keys=True, indent=4)
     print(text)
+   
     
-def all_stops_url():
+def request_all_stops():
     pms = base_params.copy()
     pms['id'] = "1c08a38c-ae09-46d2-8926-4f9d25cb0630"
     
-    return get(dbstore_url, params=pms).json() 
+    return get(dbstore_url, params=pms).json()['result']
 
-def lines_on_stop_url(stop, pos : str) -> dict:
+
+def request_lines_stop(stop, pos : str):
     try:
         stopint = int(stop)
-    except:
+    except ValueError:
         stopint = get_stop_id(stop)
 
     pms = base_params.copy()
@@ -43,43 +45,47 @@ def lines_on_stop_url(stop, pos : str) -> dict:
     pms['busstopNr'] = pos
     pms['id'] = "88cd555f-6f31-43ca-9de4-66c479ad5942"
     
-    return get(dbtimetable_url, pms).json()
+    return get(dbtimetable_url, pms).json()['result']
 
-def stop_id_url(stop_name) -> dict:
+
+def request_stop_id(stop_name) -> dict:
     pms = base_params.copy()
     pms['name'] = stop_name
     pms['id'] = "b27f4c17-5c50-4a5b-89dd-236b282bc499"
 
-    return get(dbtimetable_url, pms).json()
+    return get(dbtimetable_url, pms).json()['result']
 
 
-def gt_routes() -> dict:
-    return get(routes_url, params=base_params).json()
+def request_routes():
+    return get(routes_url, params=base_params).json()['result']
 
 
-def live_data() -> dict:
+def request_live():
     pms = base_params.copy()
     pms['type'] = '1'
     pms['resource_id'] = "%20f2e5503e927d-4ad3-9500-4ab9e55deb59"
-    return get(live_url, params=pms).json()
+    
+    return get(live_url, params=pms).json()['result']
 
 
 def get_stop_id(stop_name : str) -> int:
-    response = stop_id_url(stop_name)
-    return response['result'][0]['values'][0]['value']
+    response = request_stop_id(stop_name)
+    return response[0]['values'][0]['value']
+    
     
 def get_lines_from_stop(przystanek : str, slupek : str) -> list:
-    response = lines_on_stop_url(przystanek, slupek)
+    response = request_lines_stop(przystanek, slupek)
     linie = []
-    data = response['result']
-    for linia in data:
+
+    for linia in response:
         linia = linia['values'][0]
         linie.append(linia['value'])
 
     return linie  
 
+
 def all_stops_data() -> list:
-    stops = all_stops_url()['result']
+    stops = request_all_stops()
     ret = []
     header = []
     
@@ -105,12 +111,11 @@ def all_stops_data() -> list:
 
     
 def get_routes():
-    response = gt_routes()
+    response = request_routes()
     routes = response['result']
     ret = []
     json_print(routes)
     
-     
     for line in routes:
         for route in routes[line]:
             a = ZtmRoute(line, route, routes[line][route])
@@ -124,25 +129,26 @@ def get_dictionary():
         return response.json()
     
     
-def live_test():    
+def get_live() -> bool:    
     pms = base_params.copy()
     pms['resource_id'] = '%20f2e5503e927d-4ad3-9500-4ab9e55deb59'
     pms['type'] = '1'
     
     time_now = datetime.now()
 
-    response = get(live_url, params=pms).json()['result']
+    response = request_live()
     header = []
+    timeout = 1
+        
+    while response[0] == 'B':
+        response = request_live()
+        timeout = timeout * 1.5
+        if timeout >= 30:
+            raise TimeoutError
+        time.sleep(timeout)
 
     for attr in response[0]:
         header.append(attr) 
-         
-    while True:
-        try:
-            czas = datetime.fromisoformat(response[0]['Time'])
-            break
-        except:
-            response = get(live_url, params=pms).json()['result']
 
     totalsec = 0
     cnt = 0
@@ -174,3 +180,4 @@ def live_test():
             wr.writerow(lista)
     
     print(goodcnt/cnt)
+    return True
