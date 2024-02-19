@@ -1,3 +1,7 @@
+from errno import EINVAL
+import genericpath
+import json
+from multiprocessing import Value
 from tempfile import TemporaryFile
 from requests import get
 from json import dumps
@@ -19,6 +23,7 @@ live_url = "https://api.um.warszawa.pl/api/action/busestrams_get/"
 
 base_params = {"apikey": APIKEY}
 
+### ???? kwargsy dorobić TODO 
 def force_get(func) -> tuple:
     response = func()
     timeout = 1
@@ -57,17 +62,17 @@ def request_lines_from_stop(stop, pos : str):
         stopint = get_stop_id(stop)
 
     pms = base_params.copy()
-    pms['busstopId'] = str(stopint)
-    pms['busstopNr'] = pos
     pms['id'] = "88cd555f-6f31-43ca-9de4-66c479ad5942"
+    pms['busstopNr'] = pos
+    pms['busstopId'] = str(stopint)
     
     return get(dbtimetable_url, pms).json()['result']
 
 
 def request_stop_id(stop_name) -> dict:
     pms = base_params.copy()
-    pms['name'] = stop_name
     pms['id'] = "b27f4c17-5c50-4a5b-89dd-236b282bc499"
+    pms['name'] = stop_name
 
     return get(dbtimetable_url, pms).json()['result']
 
@@ -76,15 +81,16 @@ def request_routes():
     return get(routes_url, params=base_params).json()['result']
 
 
-def request_timetable(stop):
-    stop = get_stop_id(stop)
-    linia = get_lines_from_stop(stop, "01")[0]
-    print(stop, "01", linia)
+def request_timetable(stop, slupek, linia):
+    try:
+        stopint = int(stop)
+    except ValueError:
+        stopint = get_stop_id(stop)
     
     pms = base_params.copy()
-    pms['id'] = 'e923fa0e-d96c-43f9-ae6e60518c9f3238'
+    pms['id'] = 'e923fa0e-d96c-43f9-ae6e-60518c9f3238'
     pms['busstopId'] = stop
-    pms['busstopNr'] = "01"
+    pms['busstopNr'] = slupek
     pms['line'] = linia
     
     return get(dbtimetable_url, params = pms).json()['result']
@@ -92,39 +98,24 @@ def request_timetable(stop):
 
 def request_live():
     pms = base_params.copy()
-    pms['type'] = '1'
     pms['resource_id'] = "%20f2e5503e927d-4ad3-9500-4ab9e55deb59"
+    pms['type'] = '1'
     
     return get(live_url, params=pms).json()['result']
 
 
-def get_stop_id(stop_name : str) -> str:
-    response = request_stop_id(stop_name)
-    try:
-        return response[0]['values'][0]['value']
-    except IndexError:
-        return "NO STOP EXISTS"
-    
-def get_lines_from_stop(przystanek : str, slupek : str) -> list:
-    response = request_lines_from_stop(przystanek, slupek)
-    linie = []
-
-    for linia in response:
-        linia = linia['values'][0]
-        linie.append(linia['value'])
-
-    return linie
-
-
-def get_all_stops():
+def get_all_stops(dirpath='.'):
     stops = request_all_stops()
     header = []
     
     for attr in stops[0]['values']:
         header.append(attr['key'])
         
-    filepath = "./DATA/allstops.csv"
-        
+    dirpath = f"{dirpath}/DATA/"
+    os.makedirs(dirpath, exist_ok=True)          
+
+    filepath = dirpath + 'allstops.csv'
+    
     with open(filepath, 'w') as file:
         wr = csv.writer(file)
         wr.writerow(header)
@@ -139,17 +130,35 @@ def get_all_stops():
 
     return True
 
+
+def get_lines_from_stop(przystanek : str, slupek : str) -> list:
+    response = request_lines_from_stop(przystanek, slupek)
+    linie = []
+
+    for linia in response:
+        linia = linia['values'][0]
+        linie.append(linia['value'])
+
+    return linie
+
+
+def get_stop_id(stop_name : str) -> str:
+    response = request_stop_id(stop_name)
+    try:
+        return response[0]['values'][0]['value']
+    except IndexError:
+        return "NO STOP EXISTS"
+
     
-def get_routes():
+def get_routes(dirpath='.'):
     response = force_get(request_routes)[0]
     
-    path = "./DATA/ROUTES/"
+    dirpath = f"{dirpath}/DATA/ROUTES/"
+    
     for line in response:
-        dirpath = path + line + '/'
-        try:
-            os.makedirs(dirpath)          
-        except:
-            pass
+        dirpath = dirpath + line + '/'
+
+        os.makedirs(dirpath, exist_ok=True)          
         
         for route in response[line]:
             filepath = dirpath + route + '.csv'
@@ -168,12 +177,40 @@ def get_routes():
                     wr.writerow(params)    
 
 
-def get_dictionary():
-    with get(dict_url, params = base_params) as response:
-        return response.json()['result']
+def get_timetable(dirpath='.'):
+    if not genericpath.exists(f"{dirpath}/DATA/allstops.csv"):
+        get_all_stops()
+        
+    with open(f"{dirpath}/DATA/allstops.csv") as file:
+        rd = csv.DictReader(file)
+        stops = [(row['zespol'], row['slupek']) for row in rd]
+
+    for stop in stops:
+        lines = get_lines_from_stop(stop[0], stop[1])
+        for line in lines:
+            print(stop[0], stop[1], line)
+            response = request_timetable(stop[0], stop[1], line)
+
+            dirpath2 = f"{dirpath}/DATA/TIMETABLES/{stop[0]}/{stop[1]}/"
+            
+            os.makedirs(dirpath2, exist_ok=True)
+            
+            filepath = dirpath2 + f"{line}.csv"
+            header = []
+            
+            with open(filepath, 'w') as file:
+                wr = csv.writer(file)
+                for event in response:
+                    event = event['values']
+                    
+                    if len(header) == 0:
+                        header = [param['key'] for param in event]
+                        wr.writerow(header)
+                    row = [param['value'] for param in event]
+                    wr.writerow(row)
+        
     
-    
-def get_live():    
+def get_live(dirpath='.'):    
     pms = base_params.copy()
     pms['resource_id'] = '%20f2e5503e927d-4ad3-9500-4ab9e55deb59'
     pms['type'] = '1'
@@ -196,12 +233,10 @@ def get_live():
 
     cnt = 0
     goodcnt = 0
-    dirpath = "./DATA/LIVE/RAW"
+    dirpath = f"{dirpath}/DATA/LIVE/RAW"
     
-    try:
-        os.makedirs(dirpath)
-    except:
-        pass
+    os.makedirs(dirpath, exist_ok=True)          
+
 
     filepath = dirpath + str(time_now.timetz())
     
@@ -228,3 +263,8 @@ def get_live():
     
     print(goodcnt/cnt)
     return True
+
+
+def get_dictionary():
+    with get(dict_url, params = base_params) as response:
+        return response.json()['result']
