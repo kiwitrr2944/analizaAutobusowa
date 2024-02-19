@@ -8,11 +8,10 @@ from ztmclasses import Position, ZtmStop
 # xd = get_routes()
 # print(xd)
 
-# get_lines_from_stop("Marszałkowska", "01")
+# print(gd.get_lines_from_stop("1242", "02"))
 # all_stops_data()
+gd.json_print(gd.request_timetable(input()))
 
-#json_print(get_dictionary())
-
-gd.get_live()
-
+# gd.get_live()
+# gd.get_routes()
 #stop_id_url("Marszałkowska")

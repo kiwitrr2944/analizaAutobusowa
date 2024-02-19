@@ -1,3 +1,4 @@
+from tempfile import TemporaryFile
 from requests import get
 from json import dumps
 import typing
@@ -6,6 +7,7 @@ from ztmclasses import ZtmRoute, ZtmStop
 import csv 
 from datetime import datetime
 import time
+import os
 
 APIKEY : str = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
 MAXTIMEDIFF : float = 75.0
@@ -16,6 +18,20 @@ dict_url = "https://api.um.warszawa.pl/api/action/public_transport_dictionary/"
 live_url = "https://api.um.warszawa.pl/api/action/busestrams_get/"
 
 base_params = {"apikey": APIKEY}
+
+def force_get(func) -> tuple:
+    response = func()
+    timeout = 1
+    
+    while len(response) == 1:
+        response = func()
+        timeout = timeout * 1.5
+        if timeout >= 30:
+            raise TimeoutError
+        time.sleep(timeout)
+    
+    return (response, timeout)
+
 
 def json_print(text : str) -> None:
     """Wrapper for printing indented data for debugging
@@ -34,7 +50,7 @@ def request_all_stops():
     return get(dbstore_url, params=pms).json()['result']
 
 
-def request_lines_stop(stop, pos : str):
+def request_lines_from_stop(stop, pos : str):
     try:
         stopint = int(stop)
     except ValueError:
@@ -60,6 +76,20 @@ def request_routes():
     return get(routes_url, params=base_params).json()['result']
 
 
+def request_timetable(stop):
+    stop = get_stop_id(stop)
+    linia = get_lines_from_stop(stop, "01")[0]
+    print(stop, "01", linia)
+    
+    pms = base_params.copy()
+    pms['id'] = 'e923fa0e-d96c-43f9-ae6e60518c9f3238'
+    pms['busstopId'] = stop
+    pms['busstopNr'] = "01"
+    pms['line'] = linia
+    
+    return get(dbtimetable_url, params = pms).json()['result']
+
+
 def request_live():
     pms = base_params.copy()
     pms['type'] = '1'
@@ -68,25 +98,26 @@ def request_live():
     return get(live_url, params=pms).json()['result']
 
 
-def get_stop_id(stop_name : str) -> int:
+def get_stop_id(stop_name : str) -> str:
     response = request_stop_id(stop_name)
-    return response[0]['values'][0]['value']
-    
+    try:
+        return response[0]['values'][0]['value']
+    except IndexError:
+        return "NO STOP EXISTS"
     
 def get_lines_from_stop(przystanek : str, slupek : str) -> list:
-    response = request_lines_stop(przystanek, slupek)
+    response = request_lines_from_stop(przystanek, slupek)
     linie = []
 
     for linia in response:
         linia = linia['values'][0]
         linie.append(linia['value'])
 
-    return linie  
+    return linie
 
 
-def all_stops_data() -> list:
+def get_all_stops():
     stops = request_all_stops()
-    ret = []
     header = []
     
     for attr in stops[0]['values']:
@@ -105,31 +136,44 @@ def all_stops_data() -> list:
                 params.append(attr['value'])
             
             wr.writerow(params)
-            ret.append(ZtmStop(params))
 
-    return ret
+    return True
 
     
 def get_routes():
-    response = request_routes()
-    routes = response['result']
-    ret = []
-    json_print(routes)
+    response = force_get(request_routes)[0]
     
-    for line in routes:
-        for route in routes[line]:
-            a = ZtmRoute(line, route, routes[line][route])
-            ret.append(a)
-    
-    return ret
+    path = "./DATA/ROUTES/"
+    for line in response:
+        dirpath = path + line + '/'
+        try:
+            os.makedirs(dirpath)          
+        except:
+            pass
+        
+        for route in response[line]:
+            filepath = dirpath + route + '.csv'
+            
+            route_list = response[line][route]
+            header = []
+            
+            with open(filepath, 'w') as file:
+                wr = csv.writer(file)
+                
+                for stop in route_list:
+                    if len(header) == 0:
+                        header = [i for i in route_list[stop]]
+                        wr.writerow(header)
+                    params = [route_list[stop][i] for i in header]
+                    wr.writerow(params)    
 
 
 def get_dictionary():
-    with get(dict_url) as response:
-        return response.json()
+    with get(dict_url, params = base_params) as response:
+        return response.json()['result']
     
     
-def get_live() -> bool:    
+def get_live():    
     pms = base_params.copy()
     pms['resource_id'] = '%20f2e5503e927d-4ad3-9500-4ab9e55deb59'
     pms['type'] = '1'
@@ -150,11 +194,16 @@ def get_live() -> bool:
     for attr in response[0]:
         header.append(attr) 
 
-    totalsec = 0
     cnt = 0
     goodcnt = 0
-    filepath = f"./DATA/LIVE/{time_now.timetz()}"
-    print(response[0])
+    dirpath = "./DATA/LIVE/RAW"
+    
+    try:
+        os.makedirs(dirpath)
+    except:
+        pass
+
+    filepath = dirpath + str(time_now.timetz())
     
     with open(filepath, "w") as file:
         wr = csv.writer(file)
@@ -163,15 +212,13 @@ def get_live() -> bool:
         for data in response:
             czas = datetime.fromisoformat(data['Time'])
             c = time_now - czas
-            
-            totalsec += c.total_seconds()
+    
             cnt += 1
             
             if c.total_seconds() >= MAXTIMEDIFF:
                 continue
             
             goodcnt += 1
-            # print(c.total_seconds())
             
             lista = []
             
