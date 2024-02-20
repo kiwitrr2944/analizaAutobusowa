@@ -12,6 +12,8 @@ import csv
 from datetime import datetime
 import time
 import os
+import glob
+
 
 APIKEY : str = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
 MAXTIMEDIFF : float = 75.0
@@ -274,3 +276,19 @@ def get_live(dirpath='.'):
 def get_dictionary():
     with get(dict_url, params = base_params) as response:
         return response.json()['result']
+    
+    
+def organize_live(dirpath="."):
+    files = glob.glob(f"{dirpath}/DATA/LIVE/RAW/*")
+    df_list = (pd.read_csv(file, header=0) for file in files)
+    
+    df = pd.concat(df_list, ignore_index=True)
+    df.sort_values(by=['VehicleNumber', 'Time'], axis=0, inplace=True)
+
+    lines = df['Lines'].unique().tolist()
+    dirpath = f"{dirpath}/DATA/LIVE/LINES"
+    os.makedirs(dirpath, exist_ok=True)
+    
+    for line in lines:
+        filepath = f"{dirpath}/{line}.csv"
+        df[df['Lines'] == line].to_csv(filepath, index=False)

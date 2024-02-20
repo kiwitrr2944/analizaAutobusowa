@@ -14,9 +14,11 @@ import csv
 # gd.get_live()
 # gd.get_routes()
 #stop_id_url("Marszałkowska")
-gd.get_routes()
+# gd.get_routes()
 
-with open('./DATA/ROUTES/738/TP-MET.csv') as file:
-    rd = csv.DictReader(file)
-    for x in rd:
-        print(x)
+# with open('./DATA/ROUTES/738/TP-MET.csv') as file:
+#     rd = csv.DictReader(file)
+#     for x in rd:
+#         print(x)
+        
+gd.organize_live()
