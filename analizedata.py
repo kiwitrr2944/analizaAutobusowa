@@ -99,15 +99,22 @@ def bus_status(lat, lon, line, brigade, time):
                               (all_positions['Brigade'] == brigade)
                             ]
 
-    
     found['dist'] = calc_dist(found['Lat'], 
                             found['Lon'],
                             found['Lat']-lat,
                             found['Lon']-lon
                         )
     
-    found = found.sort_values(by=['dist'])
-    return found['Time'].iloc[0]
+    found = found[found['dist'] <= 50]
+    
+    found['Time'] = pd.to_datetime(found['Time'])
+    
+
+    found['timediff'] = time - found['Time']
+    found['timediff'] = abs(found['timediff'].dt.seconds)
+    found = found.sort_values(by='timediff')
+    
+    return found['timediff'].iloc[0]
 
 def earliness():
     path = os.curdir
@@ -125,7 +132,12 @@ def earliness():
     all_positions = pd.read_csv(f"{path}/DATA/LIVE/positions_all.csv")
     
     df = df.head(100)
-    df['earliness'] = bus_status(df['szer_geo'], df['dlug_geo'], df['line'], df['brygada'], df['czas'])
+    df['earliness'] = bus_status(df['szer_geo'], 
+                                 df['dlug_geo'], 
+                                 df['line'], 
+                                 df['brygada'], 
+                                 pd.to_datetime(df['czas'])
+                            )
     
     df.to_csv("earliness_test.csv")
 
