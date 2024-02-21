@@ -106,14 +106,14 @@ def request_live():
     return get(live_url, params=pms).json()['result']
 
 
-def get_all_stops(dirpath='.'):
+def get_all_stops():
     stops = request_all_stops()
     header = []
     
     for attr in stops[0]['values']:
         header.append(attr['key'])
-        
-    dirpath = f"{dirpath}/DATA/"
+       
+    dirpath = f"{os.getcwd()}/DATA/"
     os.makedirs(dirpath, exist_ok=True)          
 
     filepath = dirpath + 'allstops.csv'
@@ -152,10 +152,10 @@ def get_stop_id(stop_name : str) -> str:
         return "NO STOP EXISTS"
 
     
-def get_routes(dirpath='.'):
+def get_routes():
     response = force_get(request_routes)[0]
     
-    dirpath = f"{dirpath}/DATA/ROUTES/"
+    dirpath = f"{os.getcwd()}/DATA/ROUTES/"
     
     for line in response:
         dirpath2 = dirpath + line + '/'
@@ -184,7 +184,8 @@ def get_routes(dirpath='.'):
             print(df)
             df.to_csv(filepath)
             
-def get_timetable(dirpath='.'):
+def get_timetable():
+    dirpath = os.getcwd()
     if not genericpath.exists(f"{dirpath}/DATA/allstops.csv"):
         get_all_stops()
         
@@ -218,7 +219,7 @@ def get_timetable(dirpath='.'):
         
         
     
-def get_live(dirpath='.'):    
+def get_live():    
     pms = base_params.copy()
     pms['resource_id'] = '%20f2e5503e927d-4ad3-9500-4ab9e55deb59'
     pms['type'] = '1'
@@ -241,7 +242,7 @@ def get_live(dirpath='.'):
 
     cnt = 0
     goodcnt = 0
-    dirpath = f"{dirpath}/DATA/LIVE/RAW"
+    dirpath = f"{os.getcwd()}/DATA/LIVE/RAW"
     
     os.makedirs(dirpath, exist_ok=True)          
 
@@ -278,12 +279,16 @@ def get_dictionary():
         return response.json()['result']
     
     
-def organize_live(dirpath="."):
+def organize_live():
+    dirpath = os.getcwd()
+    
     files = glob.glob(f"{dirpath}/DATA/LIVE/RAW/*")
-    df_list = (pd.read_csv(file, header=0) for file in files)
+    df_list = [pd.read_csv(file, header=0) for file in files]
     
     df = pd.concat(df_list, ignore_index=True)
     df.sort_values(by=['VehicleNumber', 'Time'], axis=0, inplace=True)
+    
+    df.to_csv(f"{dirpath}/DATA/LIVE/positions_all.csv", index=False)
 
     lines = df['Lines'].unique().tolist()
     dirpath = f"{dirpath}/DATA/LIVE/LINES"
@@ -293,7 +298,20 @@ def organize_live(dirpath="."):
         filepath = f"{dirpath}/{line}.csv"
         df[df['Lines'] == line].to_csv(filepath, index=False)
         
-def get_timetable2(modulo, dirpath='.'):
+        
+def all_live():
+    dirpath = os.getcwd()
+    files = glob.glob(f"{dirpath}/DATA/LIVE/RAW/*")
+    df_list = [pd.read_csv(file, header=0) for file in files]
+    
+    df = pd.concat(df_list, ignore_index=True)
+    df.sort_values(by=['VehicleNumber', 'Time'], axis=0, inplace=True)
+    
+    df.to_csv(f"{dirpath}/DATA/LIVE/positions_all.csv", index=False)
+        
+        
+def get_timetable2(modulo, start, offset):
+    dirpath = os.getcwd()
     if not genericpath.exists(f"{dirpath}/DATA/allstops.csv"):
         get_all_stops()
         
@@ -302,25 +320,30 @@ def get_timetable2(modulo, dirpath='.'):
         stops = [(row['zespol'], row['slupek']) for row in rd]
     
 
-    filepath = f"{dirpath}/DATA/TIMETABLES/timetable{modulo}.csv"
+    filepath = f"{dirpath}/DATA/TIMETABLES/timetable{modulo+offset}.csv"
     
     with open(filepath, 'w') as file:
         wr = csv.writer(file)
         for stop in stops:
             try:
-                if (int(stop[0]) <= 2188 or int(stop[0])%4 != modulo):
+                if (int(stop[0]) < start or int(stop[0])%4 != modulo):
                     continue
             except:
                 pass
             
-            lines = get_lines_from_stop(stop[0], stop[1])
-            
+            try:
+                lines = get_lines_from_stop(stop[0], stop[1])
+            except:
+                lines = []
             header = ['stop', 'no', 'line']            
             
             for line in lines:
                 print(stop[0], stop[1], line)
-                response = request_timetable(stop[0], stop[1], line)
-
+                try:
+                    response = request_timetable(stop[0], stop[1], line)
+                except:
+                    response = {}
+                    
                 for event in response:
                     event = event['values']
                     
@@ -329,4 +352,14 @@ def get_timetable2(modulo, dirpath='.'):
                         wr.writerow(header)
                         
                     row = [stop[0], stop[1], line] + [param['value'] for param in event][2:]
-                    wr.writerow(row)
+                    wr.writerow(row) 
+                    
+def organize_timetables():
+    path = os.curdir
+    files = glob.glob(f"{path}/DATA/TIMETABLES/*.csv")
+    dfl = [pd.read_csv(file) for file in files]
+    
+    df = pd.concat(dfl, ignore_index=True)
+    df = df.rename(columns={'stop' : 'zespol', 'no' : 'slupek'})
+    df.drop_duplicates(ignore_index=True)
+    df.to_csv(f"{path}/DATA/TIMETABLES/timetable_all.csv", index=False)

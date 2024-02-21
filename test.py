@@ -1,5 +1,6 @@
 import getdata as gd
-import csv 
+import analizedata as ad
+import sys
 
 # stops = all_stops_data()
 
@@ -19,6 +20,12 @@ import csv
 # with open('./DATA/ROUTES/738/TP-MET.csv') as file:
 #     rd = csv.DictReader(file)
 #     for x in rd:
-#         print(x)
-        
-gd.organize_live()
+#         print(x)      
+# gd.organize_live()
+# gd.organize_live()
+
+# print(sys.argv[1])
+
+# gd.get_timetable2(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
+
+# gd.organize_timetables()

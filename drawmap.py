@@ -92,7 +92,7 @@ def plot_all_routes(path="."):
 def draw_all_speeding_buses():
     m = folium.Map(location=[52, 21])
 
-    df = ad.sle()
+    df = ad.sle_all()
     cnt = 0
     for x in df.iterrows():
         x = x[1]
@@ -112,8 +112,9 @@ def draw_all_speeding_buses():
         # folium.Marker(location=(x['end_lat'], x['end_lon'])).add_to(m)
     m.save(f"all_lines.html")
     
-draw_all_speeding_buses()
+# draw_all_speeding_buses()
 # m = folium.Map(location=[52, 21])
 # plot_all_routes()
 # gd.json_print(gd.get_dictionary())
 # plot_routes(input())
+# print(gd.get_lines_from_stop("1001", "01"))
