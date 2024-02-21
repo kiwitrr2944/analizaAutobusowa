@@ -1,5 +1,4 @@
 from genericpath import exists
-from turtle import width
 import folium
 import analizedata as ad
 import glob
@@ -7,6 +6,7 @@ import pandas as pd
 import csv
 import os
 import getdata as gd
+
 
 
 BASIC_MAP = folium.Map(location=[52, 21])
@@ -22,6 +22,7 @@ def plotDot(stopname, slupek, map, lon, lat, r=30):
 allstops = pd.read_csv(f"./DATA/allstops.csv")
 allstops['zespol'] = allstops['zespol'].astype(str)
 allstops['slupek'] = allstops['slupek'].astype(int)
+
 
 def stop_location(zespol, slupek):
     found = allstops[(allstops['zespol'] == zespol) & (allstops['slupek'] == slupek)]
@@ -60,33 +61,32 @@ def plot_all_lines(path="."):
     for line in lines:
         plot_routes(line.removeprefix(f"{path}/DATA/ROUTES/"), path)
     
-# plot_routes(input("Podaj linie: "))
-    
-# plot_all_lines()
 
-# print(ad.sle_line(input(), save=True))
-
-colours = ['blue', 'yellow', 'orange', 'red']
+colours = ['blue', 'yellow', 'orange', 'red', 'purple']
 
 
-def fun():
+def draw_all_speedings():
     m = folium.Map(location=[52, 21])
-    line = input()
-    df = ad.sle_line(line, save=True)
+
+    df = ad.sle()
     cnt = 0
     for x in df.iterrows():
         x = x[1]
         color = int(x['speed'])//10
-        color = min(3, color-5)
-
-        folium.PolyLine(locations=[(x['start_lat'], x['start_lon']), 
-                                   (x['end_lat'], x['end_lon'])],
-                        popup=f"Speed = {x['speed']}",
-                        color=colours[color]
-                        ).add_to(m)
-        
+        color = min(4, color-5) 
+        color = max(0, color)
+        try:
+            folium.PolyLine(locations=[(x['start_lat'], x['start_lon']), 
+                                       (x['end_lat'], x['end_lon'])],
+                            popup=f"Speed = {x['speed']}\n Time = {x['time']}\n",
+                            color=colours[color]
+                            ).add_to(m)
+        except:
+            pass
         # folium.Marker(location=(x['start_lat'], x['start_lon'])).add_to(m)     
         # folium.Marker(location=(x['end_lat'], x['end_lon'])).add_to(m)
-    m.save("map.html")
+    m.save(f"all_lines.html")
     
-fun()
+draw_all_speedings()
+
+# m = folium.Map(location=[52, 21])
