@@ -1,4 +1,5 @@
 from genericpath import exists
+from turtle import width
 import folium
 import analizedata as ad
 import glob
@@ -16,16 +17,7 @@ def plotDot(stopname, slupek, map, lon, lat, r=30):
                         weight=5,
                         popup=f"{stopname}, {slupek}").add_to(map)
 
-# m = folium.Map(location=[52, 21])
 
-# df = ad.speed_limit()
-# print(df)
-
-
-# for x in df.itertuples():
-#     plotDot(m, (x[5], x[2]), x[7])
-
-# m.save("map.html")
 
 allstops = pd.read_csv(f"./DATA/allstops.csv")
 allstops['zespol'] = allstops['zespol'].astype(str)
@@ -72,4 +64,29 @@ def plot_all_lines(path="."):
     
 # plot_all_lines()
 
-print(ad.sle_line(input(), save=True))
+# print(ad.sle_line(input(), save=True))
+
+colours = ['blue', 'yellow', 'orange', 'red']
+
+
+def fun():
+    m = folium.Map(location=[52, 21])
+    line = input()
+    df = ad.sle_line(line, save=True)
+    cnt = 0
+    for x in df.iterrows():
+        x = x[1]
+        color = int(x['speed'])//10
+        color = min(3, color-5)
+
+        folium.PolyLine(locations=[(x['start_lat'], x['start_lon']), 
+                                   (x['end_lat'], x['end_lon'])],
+                        popup=f"Speed = {x['speed']}",
+                        color=colours[color]
+                        ).add_to(m)
+        
+        # folium.Marker(location=(x['start_lat'], x['start_lon'])).add_to(m)     
+        # folium.Marker(location=(x['end_lat'], x['end_lon'])).add_to(m)
+    m.save("map.html")
+    
+fun()
