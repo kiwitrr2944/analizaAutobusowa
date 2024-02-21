@@ -184,7 +184,6 @@ def get_routes(dirpath='.'):
             print(df)
             df.to_csv(filepath)
             
-            
 def get_timetable(dirpath='.'):
     if not genericpath.exists(f"{dirpath}/DATA/allstops.csv"):
         get_all_stops()
@@ -192,30 +191,31 @@ def get_timetable(dirpath='.'):
     with open(f"{dirpath}/DATA/allstops.csv") as file:
         rd = csv.DictReader(file)
         stops = [(row['zespol'], row['slupek']) for row in rd]
+    
 
-    for stop in stops:
-        lines = get_lines_from_stop(stop[0], stop[1])
-        for line in lines:
-            print(stop[0], stop[1], line)
-            response = request_timetable(stop[0], stop[1], line)
+    filepath = f"{dirpath}/DATA/TIMETABLES/timetable.csv"
+    
+    with open(filepath, 'w') as file:
+        wr = csv.writer(file)
+        for stop in stops:
+            lines = get_lines_from_stop(stop[0], stop[1])
+            
+            header = ['stop', 'no', 'line']            
+            
+            for line in lines:
+                print(stop[0], stop[1], line)
+                response = request_timetable(stop[0], stop[1], line)
 
-            dirpath2 = f"{dirpath}/DATA/TIMETABLES/{stop[0]}/{stop[1]}/"
-            
-            os.makedirs(dirpath2, exist_ok=True)
-            
-            filepath = dirpath2 + f"{line}.csv"
-            header = []
-            
-            with open(filepath, 'w') as file:
-                wr = csv.writer(file)
                 for event in response:
                     event = event['values']
                     
-                    if len(header) == 0:
-                        header = [param['key'] for param in event]
+                    if len(header) == 3:
+                        header = header + [param['key'] for param in event][2:]
                         wr.writerow(header)
-                    row = [param['value'] for param in event]
+                        
+                    row = [stop[0], stop[1], line] + [param['value'] for param in event][2:]
                     wr.writerow(row)
+        
         
     
 def get_live(dirpath='.'):    
@@ -292,3 +292,41 @@ def organize_live(dirpath="."):
     for line in lines:
         filepath = f"{dirpath}/{line}.csv"
         df[df['Lines'] == line].to_csv(filepath, index=False)
+        
+def get_timetable2(modulo, dirpath='.'):
+    if not genericpath.exists(f"{dirpath}/DATA/allstops.csv"):
+        get_all_stops()
+        
+    with open(f"{dirpath}/DATA/allstops.csv") as file:
+        rd = csv.DictReader(file)
+        stops = [(row['zespol'], row['slupek']) for row in rd]
+    
+
+    filepath = f"{dirpath}/DATA/TIMETABLES/timetable{modulo}.csv"
+    
+    with open(filepath, 'w') as file:
+        wr = csv.writer(file)
+        for stop in stops:
+            try:
+                if (int(stop[0]) <= 2188 or int(stop[0])%4 != modulo):
+                    continue
+            except:
+                pass
+            
+            lines = get_lines_from_stop(stop[0], stop[1])
+            
+            header = ['stop', 'no', 'line']            
+            
+            for line in lines:
+                print(stop[0], stop[1], line)
+                response = request_timetable(stop[0], stop[1], line)
+
+                for event in response:
+                    event = event['values']
+                    
+                    if len(header) == 3:
+                        header = header + [param['key'] for param in event][2:]
+                        wr.writerow(header)
+                        
+                    row = [stop[0], stop[1], line] + [param['value'] for param in event][2:]
+                    wr.writerow(row)

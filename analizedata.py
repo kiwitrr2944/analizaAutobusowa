@@ -1,4 +1,8 @@
+import genericpath
 from pickletools import long1
+from re import L, S
+from sqlite3 import Time
+from tempfile import TemporaryFile
 import numpy as np
 import pandas as pd
 import os
@@ -7,10 +11,12 @@ from datetime import datetime
 from getdata import MAXTIMEDIFF 
 from ztmclasses import Position
 from geopy import distance
+from haversine import haversine
 
-REASONABLE_SPEED_INFINITY = 100
+
+REASONABLE_SPEED_INFINITY = 130
 SPEED_LIMIT = 50
-MAX_TIME_ELAPSED = 60
+MAX_TIME_ELAPSED = 60.0
 
 
 @np.vectorize
@@ -18,84 +24,72 @@ def calc_dist(lon, lat, dlon, dlat):
     lon2 = lon + dlon
     lat2 = lat + dlat
     
-    return distance.distance((lat, lon), (lat2, lon2)).m
+    return haversine((lat, lon), (lat2, lon2))*1000.0
 
 
 def calc_speed(dist, time):
     return dist/time * 3.6
 
 
-def sle_line(line, path='.', save=False):
+def speed_line(line, path='.', save=False):
     path = f"{path}/DATA/LIVE/LINES/{line}.csv"
     
     df = pd.read_csv(path).drop_duplicates(subset=['VehicleNumber', 'Time'])
     
-    all = 0
-    
     vehicles = df['VehicleNumber'].unique().tolist()
-    lon1 = []
-    lat1 = []
-    lons = []
-    lats = []
-    speeds = []
-    dists = []
-    times = []
+    
+    frames = []
     
     for vehicle in vehicles:
         cur_df = df[df['VehicleNumber'] == vehicle].copy()
         
         cur_df['Time'] = pd.to_datetime(cur_df['Time'])
+
+        lon, lat, time = (cur_df[key].to_numpy() for key in ('Lon', 'Lat', 'Time'))        
+        dlon, dlat, dtime = np.diff(lon), np.diff(lat), (np.diff(time) / 1e9).astype(float)
         
-        lon = cur_df['Lon'].to_numpy()
-        lat = cur_df['Lat'].to_numpy()
-        time = cur_df['Time'].to_numpy()
-        
-        dlon = np.diff(lon)
-        dlat = np.diff(lat)
-        dtime = np.diff(time)
-        
-        dtime /= 1000000000.0
-        dtime = dtime.astype(float)
+        time, lon, lat = (array[:-1] for array in (time, lon, lat))
 
         if len(dtime) > 0:
-            speed = calc_speed(calc_dist(lon[:-1], lat[:-1], dlon, dlat), dtime)
+            speed = calc_speed(calc_dist(lon, lat, dlon, dlat), dtime).astype(float)
+            dist = calc_dist(lon, lat, dlon, dlat).astype(float)
             
-            dist = calc_dist(lon[:-1], lat[:-1], dlon, dlat)
-            times.append(pd.Series(dtime))
-            times.append(pd.Series([np.NaN]))
-            dists.append(pd.Series(dist))
-            dists.append(pd.Series([np.NaN]))
-            speeds.append(pd.Series(speed))
-            speeds.append(pd.Series([np.NaN]))
-            lons.append(pd.Series(lon))
-            lons.append(pd.Series([np.NaN]))
-            lon1.append(pd.Series(lon[:-1] + dlon))
-            lon1.append(pd.Series([np.NaN]))
-            lats.append(pd.Series(lat))
-            lats.append(pd.Series([np.NaN]))
-            lat1.append(pd.Series(lat[:-1] + dlat))
-            lat1.append(pd.Series([np.NaN]))
+            frame = pd.DataFrame({
+                'line' : line,
+                'start_lat' : lat,
+                'start_lon' : lon,
+                'end_lat' : lat+dlat,
+                'end_lon' : lon+dlon,
+                'speed' : speed,
+                'distance' : dist,
+                'dtime' : dtime,
+                'time' : time
+                
+            })
+            frames.append(frame)
+            
+    res_df = pd.concat(frames)
 
-    res_df = pd.DataFrame()            
-    res_df['start_lat'] = pd.concat(lats, ignore_index=True)    
-    res_df['start_lon'] = pd.concat(lons, ignore_index=True)
-    res_df['end_lat'] = pd.concat(lat1, ignore_index=True)           
-    res_df['end_lon'] = pd.concat(lon1, ignore_index=True)
-    res_df['speed'] = pd.concat(speeds, ignore_index=True)
-    res_df['dist'] = pd.concat(dists, ignore_index=True)
-    res_df['time'] = pd.concat(times, ignore_index=True)
-    
-    res_df = res_df[(res_df['speed'] >= SPEED_LIMIT) & 
-                    (res_df['speed'] <= REASONABLE_SPEED_INFINITY) &
-                    (res_df['time'] <= MAX_TIME_ELAPSED)]
-    
     if save:
         path = path.removesuffix(f"{line}.csv")
-        os.makedirs(f"{path}/SLE/", exist_ok=True)
-        path = path + f"/SLE/{line}.csv"
+        os.makedirs(f"{path}/SPEED/", exist_ok=True)
+        path = path + f"/SPEED/{line}.csv"
         res_df.to_csv(path, index=False)
     
     return res_df
+    
+    
+def sle_line(line, limit=50, max_time=60):
+    try:
+        raise ValueError
+        file = f"./DATA/LIVE/LINES/SPEED/{line}.csv"
+        res_df = pd.read_csv(file)
+    except:
+        res_df = speed_line(line, save=True)
+        
+    return res_df[(res_df['speed'] >= limit) & 
+                    (res_df['speed'] <= REASONABLE_SPEED_INFINITY) &
+                    (res_df['dtime'] <= max_time)]
     
 
 def sle(path="."):
@@ -104,6 +98,7 @@ def sle(path="."):
     
     for line in lines:
         print(line)
-        ret_list.append(sle_line(line.removeprefix(f"{path}/DATA/LIVE/LINES/").removesuffix('.csv'), save=True))
+        
+        ret_list.append(sle_line(line.removeprefix(f"{path}/DATA/LIVE/LINES/").removesuffix('.csv')))
         
     return pd.concat(ret_list, ignore_index=True)

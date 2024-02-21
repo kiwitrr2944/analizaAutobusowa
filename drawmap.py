@@ -11,11 +11,38 @@ import getdata as gd
 
 BASIC_MAP = folium.Map(location=[52, 21])
 
-def plotDot(stopname, slupek, map, lon, lat, r=30):
-    folium.CircleMarker(location=[lon, lat], 
-                        radius=r//10, 
-                        weight=5,
-                        popup=f"{stopname}, {slupek}").add_to(map)
+colors = {   
+    '0' : 'green', 
+    '1' : 'blue',        
+    '2' : 'yellow',
+    '3' : 'orange',      
+    '4' : 'red',          
+    '5' : 'purple',       
+    '6' : 'brown',       
+    '7' : 'black'        
+}
+
+types = {
+    "0": "przelotowy",
+    "1": "stały",
+    "2": "na żądanie",
+    "3": "krańcowy",
+    "4": "dla wysiadających",
+    "5": "dla wsiadających",
+    "6": "zajezdnia",
+    "7": "techniczny",
+    "8": "postojowy"
+}
+
+def plotDot(stopname, slupek, typ, map, lon, lat):
+    folium.CircleMarker(location = [lon, lat], 
+                        radius = 3, 
+                        weight = 5,
+                        fill = True,
+                        fill_color = colors[typ],
+                        color = colors[typ],
+                        popup = f"{stopname}{slupek} typ={types[typ]}"
+                        ).add_to(map)
 
 
 
@@ -47,46 +74,46 @@ def plot_routes(line, path="."):
             stops = csv.DictReader(file)
             for stop in stops:
                 lon, lat, name, pos = stop_location(str(stop['nr_zespolu']), int(stop['nr_przystanku']))
-                plotDot(name, pos, m, lon, lat, 50)
+                plotDot(name, pos, stop['typ'], m, lon, lat)
     
-    dirpath2 = f"{path}/DATA/MAPS/"
+    dirpath2 = f"{path}/DATA/MAPS/ROUTES"
     os.makedirs(dirpath2, exist_ok=True)
     
     m.save(f"{dirpath2}/{line}.html")
       
       
-def plot_all_lines(path="."):   
+def plot_all_routes(path="."):   
     lines = glob.glob(f"{path}/DATA/ROUTES/*")
 
     for line in lines:
         plot_routes(line.removeprefix(f"{path}/DATA/ROUTES/"), path)
-    
-
-colours = ['blue', 'yellow', 'orange', 'red', 'purple']
 
 
-def draw_all_speedings():
+def draw_all_speeding_buses():
     m = folium.Map(location=[52, 21])
 
     df = ad.sle()
     cnt = 0
     for x in df.iterrows():
         x = x[1]
-        color = int(x['speed'])//10
-        color = min(4, color-5) 
-        color = max(0, color)
+        spd = str(max(0, (int(x['speed']//10) - 5)))
+        print(colors[spd])
         try:
-            folium.PolyLine(locations=[(x['start_lat'], x['start_lon']), 
-                                       (x['end_lat'], x['end_lon'])],
-                            popup=f"Speed = {x['speed']}\n Time = {x['time']}\n",
-                            color=colours[color]
-                            ).add_to(m)
+            folium.PolyLine(
+                            locations= [(x['start_lat'], x['start_lon']), 
+                                        (x['end_lat'], x['end_lon'])],
+                            
+                            popup = f"Line = {x['Line']}\n Speed = {x['speed']}\n Time = {x['time']}\n",
+                            color = colors[spd]
+                        ).add_to(m)
         except:
             pass
         # folium.Marker(location=(x['start_lat'], x['start_lon'])).add_to(m)     
         # folium.Marker(location=(x['end_lat'], x['end_lon'])).add_to(m)
     m.save(f"all_lines.html")
     
-draw_all_speedings()
-
+draw_all_speeding_buses()
 # m = folium.Map(location=[52, 21])
+# plot_all_routes()
+# gd.json_print(gd.get_dictionary())
+# plot_routes(input())
