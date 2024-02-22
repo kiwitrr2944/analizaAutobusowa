@@ -1,6 +1,5 @@
 import getdata as gd
 import analizedata as ad
-import sys
 from cProfile import Profile
 from pstats import SortKey, Stats
 
@@ -16,20 +15,20 @@ from pstats import SortKey, Stats
 # gd.get_timetable()
 # gd.get_live()
 # gd.get_routes()
-#stop_id_url("Marszałkowska")
+# stop_id_url("Marszałkowska")
 # gd.get_routes()
 
 # with open('./DATA/ROUTES/738/TP-MET.csv') as file:
 #     rd = csv.DictReader(file)
 #     for x in rd:
-#         print(x)      
+#         print(x)
 # gd.organize_live()
 # gd.organize_live()
 
 # print(sys.argv[1])
 
 # gd.get_timetable2(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
-
+gd.json_print("sth for flake not to rant about")
 # gd.organize_timetables()
 with Profile() as profile:
     print(f"{ad.earliness()}")
