@@ -2,11 +2,10 @@ import folium
 import analizedata as ad
 import getdata as gd
 import pandas as pd
+import numpy as np
 import glob
 import csv
 import os
-
-BASIC_MAP = folium.Map(location=[52, 21])
 
 colors = {
     '0': 'green',
@@ -33,7 +32,9 @@ types = {
 }
 
 
-def plot_dot(complex, no, typ, m: folium.Map, lon, lat, r, w, d=True) -> None:
+def plot_dot(complex, no, colour, m: folium.Map,
+             lon, lat, r, w, text
+             ) -> None:
     """Plot a point on a map with popup (complex, no, typ)
 
     Args:
@@ -42,10 +43,10 @@ def plot_dot(complex, no, typ, m: folium.Map, lon, lat, r, w, d=True) -> None:
 
     folium.CircleMarker(
                     location=[lon, lat],
-                    fill_color=colors[typ],
+                    fill_color=colors[colour],
                     fill=True,
-                    color=colors[typ],
-                    popup=f"{complex} {no} typ={types[typ] if d else typ}",
+                    color=colors[colour],
+                    popup=f"{complex} {no} {text}",
                     radius=r,
                     weight=w
                 ).add_to(m)
@@ -116,10 +117,10 @@ def plot_routes(line: str) -> None:
         with open(route) as file:
             stops = csv.DictReader(file)
             for stop in stops:
-                lon, lat, name, pos = stop_location(str(stop['nr_zespolu']),
-                                                    str(stop['nr_przystanku']))
+                lon, lat, name, no = stop_location(str(stop['nr_zespolu']),
+                                                   str(stop['nr_przystanku']))
 
-                plot_dot(name, pos, stop['typ'], m, lon, lat, 3, 5)
+                plot_dot(name, no, stop['typ'], m, lon, lat, 3, 5, stop['typ'])
 
     dirpath2 = f"{path}/DATA/MAPS/ROUTES"
     os.makedirs(dirpath2, exist_ok=True)
@@ -220,7 +221,7 @@ def id_location_correlation():
             x['dlug_geo'],
             3,
             4,
-            False
+            f"id = {x['zespol'][0]}"
         )
 
     m.save(f"{os.getcwd()}/DATA/MAPS/id_loc_cor.html")
@@ -244,3 +245,49 @@ def draw_speed_grid():
                 False
             )
     m.save(f"{os.getcwd()}/DATA/MAPS/speed_grid.html")
+
+
+def draw_stop_earliness():
+    df = ad.earliness_by(['nazwa_zespolu', 'slupek'])
+
+    try:
+        allstops = pd.read_csv(f"{os.getcwd()}/DATA/allstops.csv")
+    except FileNotFoundError:
+        gd.get_all_stops()
+        allstops = pd.read_csv(f"{os.getcwd()}/DATA/allstops.csv")
+
+    m = folium.Map(location=[52, 21])
+
+    df = df.merge(allstops, on=['nazwa_zespolu', 'slupek'])
+
+    df['earliness'] = np.around(df['earliness'], decimals=1)
+
+    for x in df.iterrows():
+        x = x[1]
+        plot_dot(
+                x['nazwa_zespolu'],
+                x['slupek'],
+                '1' if x['earliness'] <= 0 else '5',
+                m,
+                x['szer_geo'],
+                x['dlug_geo'],
+                np.abs(x['earliness'])/2,
+                np.abs(x['earliness'])/2,
+                f"avg lateness = {x['earliness']}min"
+            )
+    m.save("xd.html")
+
+
+def plot_line_earliness(cnt):
+    df = ad.earliness_by(['line'])
+
+    df = df.head(cnt)
+
+    a = df.plot(
+                title=f"{cnt} most late lines",
+                x='line',
+                y='earliness',
+                kind='bar',
+                )
+
+    a.get_figure().savefig(f"{os.getcwd()}/DATA/most_late.pdf")

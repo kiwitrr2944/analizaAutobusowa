@@ -159,9 +159,8 @@ def timediff(time1, time2) -> float:
 def bus_earliness(
                   lat: float, lon: float,
                   line: np.int64, brigade: np.int64,
-                  time: np.int64
+                  time
                 ):
-
     found = all_positions.loc[
                               (all_positions['Lines'] == line) &
                               (all_positions['Brigade'] == brigade)
@@ -236,8 +235,6 @@ def earliness():
     all_positions['Brigade'] = all_positions['Brigade'].apply(hash)
     all_positions['Lines'] = all_positions['Lines'].apply(hash)
 
-    timetable = timetable.head(10000)
-
     timetable['earliness'] = bus_earliness(
                                            timetable['szer_geo'],
                                            timetable['dlug_geo'],
@@ -254,9 +251,11 @@ def earliness():
     return fd/timetable.size
 
 
-def earliness_by_stop():
-    earliness()
+def earliness_by(cols: list[str]) -> pd.DataFrame:
+    # earliness()
     df = pd.read_csv(f"{os.getcwd()}/DATA/LIVE/earliness_all.csv")
     df = df.dropna()
-    df = df.groupby(['nazwa_zespolu', 'slupek'])['earliness'].mean()
-    df.to_csv("test_bez.csv")
+    df = df.groupby(cols)['earliness'].mean().reset_index()
+    df['earliness'] /= 60.0
+    df = df.sort_values(by='earliness', ascending=False)
+    return df
