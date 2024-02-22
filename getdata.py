@@ -18,22 +18,6 @@ live_url = "https://api.um.warszawa.pl/api/action/busestrams_get/"
 
 base_params = {"apikey": APIKEY}
 
-# ???? kwargsy dorobić TODO
-
-
-def force_get(func) -> tuple:
-    response = func()
-    timeout = 1
-
-    while len(response) == 1:
-        response = func()
-        timeout = timeout * 1.5
-        if timeout >= 30:
-            raise TimeoutError
-        time.sleep(timeout)
-
-    return (response, timeout)
-
 
 def json_print(text: str) -> None:
     """Wrapper for printing indented data for debugging
@@ -45,55 +29,97 @@ def json_print(text: str) -> None:
     print(text)
 
 
-def request_all_stops():
+def request_all_stops() -> dict:
+    """Request database with all stop info.
+
+    Returns:
+        dict: in ztm format
+    """
     pms = base_params.copy()
     pms['id'] = "1c08a38c-ae09-46d2-8926-4f9d25cb0630"
 
     return get(dbstore_url, params=pms).json()['result']
 
 
-def request_lines_from_stop(stop, pos: str):
+def request_lines_from_stop(complex: str, no: str) -> dict:
+    """Request lines from specific stop.
+
+    Args:
+        complex (str): complex name
+        no (str): 'slupek'
+
+    Returns:
+        dict: in ztm format
+    """
     try:
-        stopint = int(stop)
+        int(complex)
     except ValueError:
-        stopint = get_stop_id(stop)
+        get_stop_id(complex)
 
     pms = base_params.copy()
     pms['id'] = "88cd555f-6f31-43ca-9de4-66c479ad5942"
-    pms['busstopNr'] = pos
-    pms['busstopId'] = str(stopint)
+    pms['busstopId'] = str(complex)
+    pms['busstopNr'] = no
 
     return get(dbtimetable_url, pms).json()['result']
 
 
-def request_stop_id(stop_name) -> dict:
+def request_stop_id(complex: str) -> dict:
+    """Request id of a complex from its name.
+
+    Args:
+        complex(str): complex name.
+
+    Returns:
+        dict: dictionary with id.
+    """
     pms = base_params.copy()
     pms['id'] = "b27f4c17-5c50-4a5b-89dd-236b282bc499"
-    pms['name'] = stop_name
+    pms['name'] = complex
 
     return get(dbtimetable_url, pms).json()['result']
 
 
-def request_routes():
+def request_routes() -> dict:
+    """Request information about routes.
+
+    Returns:
+        dict: dictionary containing routes.
+    """
     return get(routes_url, params=base_params).json()['result']
 
 
-def request_timetable(stop, slupek, linia):
+def request_timetable(complex: str, no: str, line: str) -> dict:
+    """Request the timetable for a specific complex and line.
+
+    Args:
+        complex (str): id of the complex.
+        no (str): 'slupek'.
+        line (str): line id.
+
+    Returns:
+        dict: dictionary containing the timetable.
+    """
     try:
-        int(stop)
+        int(complex)
     except ValueError:
-        get_stop_id(stop)
+        get_stop_id(complex)
 
     pms = base_params.copy()
     pms['id'] = 'e923fa0e-d96c-43f9-ae6e-60518c9f3238'
-    pms['busstopId'] = stop
-    pms['busstopNr'] = slupek
-    pms['line'] = linia
+    pms['busstopId'] = complex
+    pms['busstopNr'] = no
+    pms['line'] = line
 
     return get(dbtimetable_url, params=pms).json()['result']
 
 
-def request_live():
+def request_live() -> dict:
+    """Request live data from API.
+
+    Returns:
+        dict: in ztm format
+    """
     pms = base_params.copy()
     pms['resource_id'] = "%20f2e5503e927d-4ad3-9500-4ab9e55deb59"
     pms['type'] = '1'
@@ -101,7 +127,22 @@ def request_live():
     return get(live_url, params=pms).json()['result']
 
 
-def get_all_stops():
+def request_dictionary() -> dict:
+    """Download dictionary with ztm keywords.
+
+    Returns:
+        dict: _description_
+    """
+    with get(dict_url, params=base_params) as response:
+        return response.json()['result']
+
+
+def get_all_stops() -> bool:
+    """Download and save in DATA/allstops.csv data about all stops.
+
+    Returns:
+        bool: True when save succedded.
+    """
     stops = request_all_stops()
     header = []
 
@@ -128,27 +169,42 @@ def get_all_stops():
     return True
 
 
-def get_lines_from_stop(przystanek: str, slupek: str) -> list:
-    response = request_lines_from_stop(przystanek, slupek)
-    linie = []
+def get_lines_from_stop(complex: str, no: str) -> list[str]:
+    """Get lines avaiable on stop
 
-    for linia in response:
-        linia = linia['values'][0]
-        linie.append(linia['value'])
+    Args:
+        complex (str): complex id
+        no (str): 'slupek'
 
-    return linie
+    Returns:
+        list[str]: list of lines
+    """
+    response = request_lines_from_stop(complex, no)
+    lines = [line['values'][0]['value'] for line in response]
+
+    return lines
 
 
-def get_stop_id(stop_name: str) -> str:
-    response = request_stop_id(stop_name)
+def get_stop_id(complex: str) -> str:
+    """Get complex id from name.
+
+    Args:
+        complex (str): complex name
+
+    Returns:
+        str: complex id
+    """
+    response = request_stop_id(complex)
     try:
         return response[0]['values'][0]['value']
     except IndexError:
         return "NO STOP EXISTS"
 
 
-def get_routes():
-    response = force_get(request_routes)[0]
+def get_routes() -> None:
+    """Unwrap dictionary with all routes and save to /DATA/ROUTES/*.csv files.
+    """
+    response = request_routes()
 
     dirpath = f"{os.getcwd()}/DATA/ROUTES/"
 
@@ -173,14 +229,15 @@ def get_routes():
                     params = [route_list[stop][i] for i in header]
                     wr.writerow(params)
 
-            print(line, route)
             df = pd.read_csv(filepath)
             df = df.sort_values(by=['odleglosc'])
-            print(df)
-            df.to_csv(filepath)
+            df.to_csv(filepath, index=False)
 
 
-def get_timetable():
+def get_timetable() -> None:
+    """Get and parse all timetables one by one to save in
+        /DATA/TIMETABLES/timetable.csv (slow and annoying)
+    """
     dirpath = os.getcwd()
     if not genericpath.exists(f"{dirpath}/DATA/allstops.csv"):
         get_all_stops()
@@ -214,7 +271,13 @@ def get_timetable():
                     wr.writerow(row)
 
 
-def get_live():
+def get_live() -> bool:
+    """Unwrap data about live bus positions in given moment and save to
+        /DATA/LIVE/RAW/{moment}.csv
+
+    Returns:
+        bool: is operation successful
+    """
     pms = base_params.copy()
     pms['resource_id'] = '%20f2e5503e927d-4ad3-9500-4ab9e55deb59'
     pms['type'] = '1'
@@ -264,16 +327,11 @@ def get_live():
                 lista.append(data[attr])
             wr.writerow(lista)
 
-    print(goodcnt/cnt)
     return True
 
 
-def get_dictionary():
-    with get(dict_url, params=base_params) as response:
-        return response.json()['result']
-
-
 def organize_live():
+    """Divides raw live data into directories for lines."""
     dirpath = os.getcwd()
 
     files = glob.glob(f"{dirpath}/DATA/LIVE/RAW/*")
@@ -293,7 +351,9 @@ def organize_live():
         df[df['Lines'] == line].to_csv(filepath, index=False)
 
 
-def all_live():
+def all_live() -> None:
+    """Creates positions_all.csv file containing all live data gathered."""
+
     dirpath = os.getcwd()
     files = glob.glob(f"{dirpath}/DATA/LIVE/RAW/*")
     df_list = [pd.read_csv(file, header=0) for file in files]
