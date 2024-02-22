@@ -8,8 +8,8 @@ import glob
 import time
 import genericpath
 
-APIKEY: str = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
-MAXTIMEDIFF: float = 75.0
+APIKEY = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
+MAXTIMEDIFF = 75.0
 dbtimetable_url = "https://api.um.warszawa.pl/api/action/dbtimetable_get/"
 dbstore_url = "https://api.um.warszawa.pl/api/action/dbstore_get/"
 routes_url = "https://api.um.warszawa.pl/api/action/public_transport_routes/"

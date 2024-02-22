@@ -1,8 +1,8 @@
-import getdata as gd
-import analizedata as ad
+# import getdata as gd
+# import analizedata as ad
+import mapdraw as md
 from cProfile import Profile
 from pstats import SortKey, Stats
-
 # stops = all_stops_data()
 
 # linia = input("podaj linie: ")
@@ -28,10 +28,9 @@ from pstats import SortKey, Stats
 # print(sys.argv[1])
 
 # gd.get_timetable2(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
-gd.json_print("sth for flake not to rant about")
 # gd.organize_timetables()
 with Profile() as profile:
-    print(f"{ad.earliness()}")
+    print(f"{md.draw_all_speeding_buses()}")
     (
         Stats(profile)
         .strip_dirs()

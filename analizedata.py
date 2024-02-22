@@ -4,17 +4,18 @@ import getdata as gd
 import os
 import glob
 
-REASONABLE_SPEED_INFINITY = 130
-SPEED_LIMIT = 50
+REASONABLE_SPEED_INFINITY = 120
 MAX_TIME_ELAPSED = 60.0
 MAX_LATE_ALLOWED = 60.0*30.0
 
 
-def calc_speed(dist, time):
+@np.vectorize
+def calc_speed(dist, time) -> float:
     return dist/time * 3.6
 
 
-def speed_for_line(line, path='.', save=False):
+def speed_for_line(line: str, save: bool = False) -> pd.DataFrame:
+    path = os.getcwd()
     path = f"{path}/DATA/LIVE/LINES/{line}.csv"
 
     try:
@@ -40,7 +41,7 @@ def speed_for_line(line, path='.', save=False):
         time, lon, lat = (series[:-1] for series in (t, lon, lat))
 
         if len(dt) > 0:
-            dist = calc_dist(lon, lat, dlon, dlat).astype(float)
+            dist = calc_dist(lat, dlon, dlat)
             speed = calc_speed(dist, dt)
 
             frame = pd.DataFrame({
@@ -68,7 +69,7 @@ def speed_for_line(line, path='.', save=False):
     return res_df
 
 
-def sle_line(line, limit=50, max_time=60):
+def sle_line(line: str, limit: float = 50, max_t: float = 60) -> pd.DataFrame:
     try:
         file = f"./DATA/LIVE/LINES/SPEED/{line}.csv"
         res_df = pd.read_csv(file)
@@ -78,13 +79,14 @@ def sle_line(line, limit=50, max_time=60):
     try:
         return res_df[(res_df['speed'] >= limit) &
                       (res_df['speed'] <= REASONABLE_SPEED_INFINITY) &
-                      (res_df['dtime'] <= max_time)
+                      (res_df['dtime'] <= max_t)
                       ]
     except KeyError:
         return pd.DataFrame()
 
 
-def sle_all(path="."):
+def sle_all() -> pd.DataFrame:
+    path = os.getcwd()
     lines = glob.glob(f"{path}/DATA/ROUTES/*")
     ret_list = []
 
@@ -98,10 +100,11 @@ def sle_all(path="."):
 
 
 @np.vectorize
-def calc_dist(lon, lat, dlon, dlat):
+def calc_dist(lat, dlon, dlat):
+    lat, dlon, dlat = (np.radians(x) for x in (lat, dlon, dlat))
     a = np.sin(dlat/2)**2 + np.cos(lat) * np.cos(lat+dlat) * np.sin(dlon/2)**2
     c = 2 * np.arcsin(np.sqrt(a))
-    r = 6371.0
+    r = 6371000.0
     return c*r
 
 
@@ -122,10 +125,16 @@ def timediff(time1, time2) -> float:
 
 
 @np.vectorize
-def bus_status(lat, lon, line, brigade, time):
-    found = all_positions.loc[(all_positions['Lines'] == line) &
+def bus_earliness(
+                  lat: float, lon: float,
+                  line: np.int64, brigade: np.int64,
+                  time: np.int64
+                ):
+
+    found = all_positions.loc[
+                              (all_positions['Lines'] == line) &
                               (all_positions['Brigade'] == brigade)
-                              ]
+                            ]
 
     if found.size == 0:
         return np.NaN
@@ -137,14 +146,17 @@ def bus_status(lat, lon, line, brigade, time):
     if found.size == 0:
         return np.NaN
 
-    found['dist'] = calc_dist(found['Lat'],
-                              found['Lon'],
-                              found['Lat']-lat,
-                              found['Lon']-lon
+    found['dist'] = calc_dist(
+                              found['Lat'],
+                              found['Lon']-lon,
+                              found['Lat']-lat
                               )
 
-    found = found[found['dist'] <= 100]
+    # found['slat'] = lat
+    # found['slon'] = lon
 
+    found = found[found['dist'] <= 100.0]
+    # print(found[['Lat', 'Lon', 'slat', 'slon', 'dist']])
     if found.size == 0:
         return np.NaN
 
@@ -154,11 +166,12 @@ def bus_status(lat, lon, line, brigade, time):
 
 
 def earliness():
-    # pd.options.mode.chained_assignment = None
+    pd.options.mode.chained_assignment = None
 
     path = os.curdir
     timetable = pd.read_csv(f"{path}/DATA/timetable_all.csv")
     allstops = pd.read_csv(f"{path}/DATA/allstops.csv")
+
     timetable['line'] = timetable['line'].astype(str)
 
     for frame in (timetable, allstops):
@@ -167,14 +180,14 @@ def earliness():
 
     timetable = timetable.merge(allstops, on=['zespol', 'slupek'])
 
-    timetable = timetable.drop(axis=1,
+    timetable = timetable.drop(
+                               axis=1,
                                columns=['trasa',
                                         'id_ulicy',
                                         'kierunek_x',
                                         'obowiazuje_od',
-                                        'kierunek_y'],
-
-                               )
+                                        'kierunek_y']
+                            )
 
     timetable['czas'] = pd.to_datetime(correct_hours(timetable['czas']))
     timetable['czas'] = timetable['czas'].dt.time
@@ -192,14 +205,14 @@ def earliness():
     all_positions['Brigade'] = all_positions['Brigade'].apply(hash)
     all_positions['Lines'] = all_positions['Lines'].apply(hash)
 
-    timetable = timetable.head(1000)
+    timetable = timetable.head(10000)
 
-    timetable['earliness'] = bus_status(timetable['szer_geo'],
-                                        timetable['dlug_geo'],
-                                        timetable['lineH'],
-                                        timetable['brygadaH'],
-                                        timetable['czas'],
-                                        timetable['line']
+    timetable['earliness'] = bus_earliness(
+                                           timetable['szer_geo'],
+                                           timetable['dlug_geo'],
+                                           timetable['lineH'],
+                                           timetable['brygadaH'],
+                                           timetable['czas']
                                         )
 
     timetable = timetable.drop(columns=['brygadaH', 'lineH'], axis=1)

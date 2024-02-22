@@ -144,6 +144,3 @@ def draw_all_speeding_buses():
                 )
 
     m.save(f"{os.getcwd()}/DATA/MAPS/all_lines.html")
-
-
-draw_all_speeding_buses()
