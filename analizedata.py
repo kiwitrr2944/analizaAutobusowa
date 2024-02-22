@@ -3,7 +3,6 @@ import pandas as pd
 import getdata as gd
 import os
 import glob
-import matplotlib.pyplot as plt
 
 REASONABLE_SPEED_INFINITY = 120
 MAX_TIME_ELAPSED = 60.0
@@ -256,11 +255,8 @@ def earliness():
 
 
 def earliness_by_stop():
-    # earliness()
+    earliness()
     df = pd.read_csv(f"{os.getcwd()}/DATA/LIVE/earliness_all.csv")
     df = df.dropna()
-
     df = df.groupby(['nazwa_zespolu', 'slupek'])['earliness'].mean()
     df.to_csv("test_bez.csv")
-    df.plot(x='nazwa_zespolu', y='earliness', kind='bar')
-    plt.show()

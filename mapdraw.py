@@ -135,8 +135,8 @@ def plot_all_routes():
         plot_routes(line.removeprefix(f"{path}/DATA/ROUTES/"))
 
 
-def draw_speeding_bus(line: str):
-    """Draw all speedings of specific line on map.
+def draw_bus(line: str):
+    """Draw all bus appearances of specific line on map.
 
     Args:
         line (str): line to plot
@@ -162,6 +162,15 @@ def draw_speeding_bus(line: str):
 
     os.makedirs(f"{path}/DATA/MAPS/LIVE", exist_ok=True)
     m.save(f"{path}/DATA/MAPS/LIVE/{line}.html")
+
+
+def draw_all_buses():
+    path = os.getcwd()
+    lines = glob.glob(f"{path}/DATA/ROUTES/*")
+
+    for line in lines:
+        print(line)
+        draw_bus(line.removeprefix(f"{path}/DATA/ROUTES/"))
 
 
 def draw_all_speeding_buses() -> None:
