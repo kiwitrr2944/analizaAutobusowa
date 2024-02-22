@@ -99,6 +99,37 @@ def sle_all() -> pd.DataFrame:
     return pd.concat(ret_list, ignore_index=True)
 
 
+def speed_grid() -> pd.DataFrame:
+    files = glob.glob(f"{os.getcwd()}/DATA/LIVE/LINES/SLE/*.csv")
+
+    df = pd.concat([pd.read_csv(file) for file in files], ignore_index=True)
+    res = pd.DataFrame({
+                        'lat': (df['start_lat']+df['end_lat'])/2,
+                        'lon': (df['start_lon']+df['end_lon'])/2,
+                        'speed': df['speed']
+                    }, dtype=float
+                    )
+
+    res = res.loc[(res['speed'] >= 3.0) &
+                  (res['speed'] <= REASONABLE_SPEED_INFINITY)
+                  ]
+
+    @np.vectorize
+    def round_my(lat):
+        return np.floor(lat/0.005) * 0.005
+
+    res['lat'] = round_my(res['lat'])
+    res['lon'] = round_my(res['lon'])
+    res = res.loc[res['lon'].between(20, 22)]
+    res = res.loc[res['lat'].between(51, 53)]
+
+    res = res.groupby(['lat', 'lon'])['speed'].mean().reset_index()
+    res = res.loc[res['speed'] >= 50.0]
+
+    res.to_csv(f"{os.getcwd()}/DATA/LIVE/speed_grid.csv")
+    return res
+
+
 @np.vectorize
 def calc_dist(lat, dlon, dlat):
     lat, dlon, dlat = (np.radians(x) for x in (lat, dlon, dlat))
