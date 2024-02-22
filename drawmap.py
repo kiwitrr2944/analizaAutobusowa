@@ -8,18 +8,18 @@ import os
 import getdata as gd
 
 
-
 BASIC_MAP = folium.Map(location=[52, 21])
 
 colors = {   
     '0' : 'green', 
     '1' : 'blue',        
     '2' : 'yellow',
-    '3' : 'orange',      
-    '4' : 'red',          
-    '5' : 'purple',       
-    '6' : 'brown',       
-    '7' : 'black'        
+    '3' : 'orange',  
+    '4' : 'pink',  
+    '5' : 'red',          
+    '6' : 'purple',       
+    '7' : 'brown',       
+    '8' : 'black',         
 }
 
 types = {
@@ -89,6 +89,28 @@ def plot_all_routes(path="."):
         plot_routes(line.removeprefix(f"{path}/DATA/ROUTES/"), path)
 
 
+def draw_speeding_bus(line):
+    path = os.getcwd()
+    
+    m = folium.Map(location=[52, 21])
+
+    df = ad.sle_line(line, 5)
+    
+    for x in df.iterrows():
+        x = x[1]
+        spd = str(max(0, (int(x['speed']//10) - 4)))
+        print(colors[spd])
+        folium.PolyLine(
+                        locations= [(x['start_lat'], x['start_lon']), 
+                                    (x['end_lat'], x['end_lon'])],
+                        popup = f"Line = {x['line']}\n Speed = {x['speed']}\n Time = {x['time']}\n",
+                        color = colors[spd]
+                    ).add_to(m)
+        # folium.Marker(location=(x['start_lat'], x['start_lon'])).add_to(m)     
+        # folium.Marker(location=(x['end_lat'], x['end_lon'])).add_to(m)
+    os.makedirs(f"{path}/DATA/MAPS/LIVE", exist_ok=True)
+    m.save(f"{path}/DATA/MAPS/LIVE/{line}.html")
+
 def draw_all_speeding_buses():
     m = folium.Map(location=[52, 21])
 
@@ -96,25 +118,23 @@ def draw_all_speeding_buses():
     cnt = 0
     for x in df.iterrows():
         x = x[1]
-        spd = str(max(0, (int(x['speed']//10) - 5)))
+        spd = str(max(0, (int(x['speed']//10) - 4)))
         print(colors[spd])
-        try:
-            folium.PolyLine(
-                            locations= [(x['start_lat'], x['start_lon']), 
-                                        (x['end_lat'], x['end_lon'])],
-                            
-                            popup = f"Line = {x['Line']}\n Speed = {x['speed']}\n Time = {x['time']}\n",
-                            color = colors[spd]
-                        ).add_to(m)
-        except:
-            pass
+        folium.PolyLine(
+                        locations= [(x['start_lat'], x['start_lon']), 
+                                    (x['end_lat'], x['end_lon'])],
+                        popup = f"Line = {x['line']}\n Speed = {x['speed']}\n Time = {x['time']}\n",
+                        color = colors[spd]
+                    ).add_to(m)
         # folium.Marker(location=(x['start_lat'], x['start_lon'])).add_to(m)     
         # folium.Marker(location=(x['end_lat'], x['end_lon'])).add_to(m)
     m.save(f"all_lines.html")
     
+
 # draw_all_speeding_buses()
 # m = folium.Map(location=[52, 21])
 # plot_all_routes()
+draw_speeding_bus(input())
 # gd.json_print(gd.get_dictionary())
 # plot_routes(input())
 # print(gd.get_lines_from_stop("1001", "01"))

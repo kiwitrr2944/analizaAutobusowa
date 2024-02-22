@@ -1,6 +1,8 @@
 import getdata as gd
 import analizedata as ad
 import sys
+from cProfile import Profile
+from pstats import SortKey, Stats
 
 # stops = all_stops_data()
 
@@ -29,3 +31,11 @@ import sys
 # gd.get_timetable2(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
 
 # gd.organize_timetables()
+with Profile() as profile:
+    print(f"{ad.earliness()}")
+    (
+        Stats(profile)
+        .strip_dirs()
+        .sort_stats(SortKey.TIME)
+        .print_stats()
+    )

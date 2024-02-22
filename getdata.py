@@ -13,7 +13,7 @@ from datetime import datetime
 import time
 import os
 import glob
-
+import numpy as np
 
 APIKEY : str = "916c4bfe-396c-4203-b87b-5a68889e9dd5"
 MAXTIMEDIFF : float = 75.0
@@ -353,13 +353,41 @@ def get_timetable2(modulo, start, offset):
                         
                     row = [stop[0], stop[1], line] + [param['value'] for param in event][2:]
                     wr.writerow(row) 
+ 
+def parse(str):
+    if len(str) != 15:
+        return (0, 0, 0)
+    
+    stp = str[:4]
+    slu = str[5:7]
+    lin = str[8:11]
+    
+    return (stp, slu, lin)
+    
                     
 def organize_timetables():
     path = os.curdir
     files = glob.glob(f"{path}/DATA/TIMETABLES/*.csv")
-    dfl = [pd.read_csv(file) for file in files]
+    dfl = []
     
+    for file in files:
+        print(file)
+        try:
+            df = pd.read_csv(file, sep=';')
+        except:
+            continue
+        stp, slu, lin = parse(file.removeprefix(f"{path}/DATA/TIMETABLES/"))
+        if stp == 0:
+            continue
+        
+        df['zespol'] = stp
+        df['slupek'] = slu
+        df['line'] = lin
+        
+        dfl.append(df)
+        
     df = pd.concat(dfl, ignore_index=True)
-    df = df.rename(columns={'stop' : 'zespol', 'no' : 'slupek'})
-    df.drop_duplicates(ignore_index=True)
-    df.to_csv(f"{path}/DATA/TIMETABLES/timetable_all.csv", index=False)
+    df = df.drop_duplicates(ignore_index=True)
+    df = df.sort_values(by=['line', 'czas'])
+    df = df.drop(columns=['symbol_2', 'symbol_1'])
+    df.to_csv(f"{path}/DATA/timetable_all.csv", index=False)

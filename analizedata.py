@@ -1,20 +1,16 @@
+from codecs import ascii_decode
+from importlib import simple
+from markupsafe import _simple_escaping_wrapper
 import numpy as np
 import pandas as pd
 import getdata as gd
 import os
 import glob
-from haversine import haversine
 
 REASONABLE_SPEED_INFINITY = 130
 SPEED_LIMIT = 50
 MAX_TIME_ELAPSED = 60.0
-
-
-@np.vectorize
-def calc_dist(lon, lat, dlon, dlat):
-    lon2 = lon + dlon
-    lat2 = lat + dlat
-    return haversine((lat, lon), (lat2, lon2))*1000.0
+MAX_LATE_ALLOWED = 60.0*30.0
 
 
 def calc_speed(dist, time):
@@ -24,7 +20,10 @@ def calc_speed(dist, time):
 def speed_for_line(line, path='.', save=False):
     path = f"{path}/DATA/LIVE/LINES/{line}.csv"
     
-    df = pd.read_csv(path).drop_duplicates(subset=['VehicleNumber', 'Time'])
+    try:
+        df = pd.read_csv(path).drop_duplicates(subset=['VehicleNumber', 'Time'])
+    except FileNotFoundError:
+        return pd.DataFrame()
     
     vehicles = df['VehicleNumber'].unique().tolist()
     
@@ -75,22 +74,35 @@ def sle_line(line, limit=50, max_time=60):
         res_df = pd.read_csv(file)
     except:
         res_df = speed_for_line(line, save=True)
+
+
+    try:
+        return res_df[(res_df['speed'] >= limit) & 
+                        (res_df['speed'] <= REASONABLE_SPEED_INFINITY) &
+                        (res_df['dtime'] <= max_time)]
+    except KeyError:
+        return pd.DataFrame()
         
-    return res_df[(res_df['speed'] >= limit) & 
-                    (res_df['speed'] <= REASONABLE_SPEED_INFINITY) &
-                    (res_df['dtime'] <= max_time)]
     
 
 def sle_all(path="."):
-    lines = glob.glob(f"{path}/DATA/LIVE/LINES/*.csv")
+    lines = glob.glob(f"{path}/DATA/ROUTES/*")
     ret_list = []
     
     for line in lines:
         print(line)
         
-        ret_list.append(sle_line(line.removeprefix(f"{path}/DATA/LIVE/LINES/").removesuffix('.csv')))
+        ret_list.append(sle_line(line.removeprefix(f"{path}/DATA/ROUTES/").removesuffix("/")))
         
     return pd.concat(ret_list, ignore_index=True)
+
+
+@np.vectorize
+def calc_dist(lon, lat, dlon, dlat):
+    a = np.sin(dlat/2)**2 + np.cos(lat) * np.cos(lat+dlat) * np.sin(dlon/2)**2
+    c = 2 * np.arcsin(np.sqrt(a))
+    r = 6371.0
+    return c*r
 
 
 @np.vectorize
@@ -99,46 +111,79 @@ def bus_status(lat, lon, line, brigade, time):
                               (all_positions['Brigade'] == brigade)
                             ]
 
+    if found.size == 0:
+        return np.NaN
+    
+    found['timediff'] = time - found['Time']
+    found['timediff'] = found['timediff'].dt.seconds
+    
+    found = found.loc[np.abs(found['timediff']) <= MAX_LATE_ALLOWED]
+    
+    if found.size == 0:
+        return np.NaN    
+    
+    
     found['dist'] = calc_dist(found['Lat'], 
                             found['Lon'],
                             found['Lat']-lat,
                             found['Lon']-lon
                         )
-    
+
     found = found[found['dist'] <= 50]
     
-    found['Time'] = pd.to_datetime(found['Time'])
+    if found.size == 0:
+        return np.NaN
     
-
-    found['timediff'] = time - found['Time']
-    found['timediff'] = abs(found['timediff'].dt.seconds)
-    found = found.sort_values(by='timediff')
+    found = found.sort_values(by='timediff', key = lambda x: np.abs(x))
     
     return found['timediff'].iloc[0]
 
+
+@np.vectorize
+def correct_hours(time_str):
+    hours, minutes, seconds = map(int, time_str.split(':'))
+    if hours >= 24:
+        hours -= 24
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 def earliness():
+    pd.options.mode.chained_assignment = None 
+    
     path = os.curdir
-    df = pd.read_csv(f"{path}/DATA/TIMETABLES/timetable_all.csv")
+    df = pd.read_csv(f"{path}/DATA/timetable_all.csv")
     allstops = pd.read_csv(f"{path}/DATA/allstops.csv")
+    df['line'] = df['line'].astype(str)
+    
     for frame in (df, allstops):
         frame['zespol'] = frame['zespol'].astype(str)
-        frame['slupek'] = frame['slupek'].astype(int)
+        frame['slupek'] = frame['slupek'].astype(str)
 
+    
+    df['czas'] = pd.to_datetime(correct_hours(df['czas']))
     
     df = df.merge(allstops, on=['zespol', 'slupek'])
     
-    gd.all_live()
-    global all_positions 
+    df = df.drop(labels=['trasa', 'id_ulicy', 'kierunek_x', 'obowiazuje_od', 'kierunek_y', 'nazwa_zespolu'], axis=1)
+    
+    global all_positions
     all_positions = pd.read_csv(f"{path}/DATA/LIVE/positions_all.csv")
     
-    df = df.head(100)
+    all_positions['Time'] = pd.to_datetime(all_positions['Time'])
+    all_positions['Brigade'] = all_positions['Brigade'].apply(hash)
+    all_positions['Lines'] = all_positions['Lines'].apply(hash) 
+       
+    df['brygadaH'] = df['brygada'].apply(hash)
+    df['lineH'] = df['line'].apply(hash)
+    df = df.head(1000)
+    
     df['earliness'] = bus_status(df['szer_geo'], 
                                  df['dlug_geo'], 
-                                 df['line'], 
-                                 df['brygada'], 
-                                 pd.to_datetime(df['czas'])
+                                 df['lineH'], 
+                                 df['brygadaH'], 
+                                 df['czas']
                             )
     
     df.to_csv("earliness_test.csv")
-
-earliness()
+    fd = df['earliness'].count()
+    return fd/df.size
