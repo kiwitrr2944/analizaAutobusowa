@@ -53,8 +53,8 @@ def speed_for_line(line, path='.', save=False):
                 'distance' : dist,
                 'dtime' : dtime,
                 'time' : time
-                
             })
+            
             frames.append(frame)
             
     res_df = pd.concat(frames)
@@ -106,6 +106,22 @@ def calc_dist(lon, lat, dlon, dlat):
 
 
 @np.vectorize
+def correct_hours(time_str):
+    hours, minutes, seconds = map(int, time_str.split(':'))
+    if hours >= 24:
+        hours -= 24
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+@np.vectorize
+def timediff(time1, time2) -> float:
+    hdiff = time1.hour - time2.hour 
+    mdiff = time1.minute - time2.minute
+    sdiff = time1.second - time2.second
+    return (hdiff if hdiff < 24 else hdiff-24) * 60 * 60 + mdiff * 60 + sdiff
+
+
+@np.vectorize
 def bus_status(lat, lon, line, brigade, time):
     found = all_positions.loc[(all_positions['Lines'] == line) &
                               (all_positions['Brigade'] == brigade)
@@ -114,8 +130,7 @@ def bus_status(lat, lon, line, brigade, time):
     if found.size == 0:
         return np.NaN
     
-    found['timediff'] = time - found['Time']
-    found['timediff'] = found['timediff'].dt.seconds
+    found['timediff'] = timediff(time, found['Time'])
     
     found = found.loc[np.abs(found['timediff']) <= MAX_LATE_ALLOWED]
     
@@ -129,7 +144,7 @@ def bus_status(lat, lon, line, brigade, time):
                             found['Lon']-lon
                         )
 
-    found = found[found['dist'] <= 50]
+    found = found[found['dist'] <= 100]
     
     if found.size == 0:
         return np.NaN
@@ -139,51 +154,50 @@ def bus_status(lat, lon, line, brigade, time):
     return found['timediff'].iloc[0]
 
 
-@np.vectorize
-def correct_hours(time_str):
-    hours, minutes, seconds = map(int, time_str.split(':'))
-    if hours >= 24:
-        hours -= 24
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-
 def earliness():
-    pd.options.mode.chained_assignment = None 
+    # pd.options.mode.chained_assignment = None 
     
     path = os.curdir
-    df = pd.read_csv(f"{path}/DATA/timetable_all.csv")
+    timetable = pd.read_csv(f"{path}/DATA/timetable_all.csv")
     allstops = pd.read_csv(f"{path}/DATA/allstops.csv")
-    df['line'] = df['line'].astype(str)
+    timetable['line'] = timetable['line'].astype(str)
     
-    for frame in (df, allstops):
+    for frame in (timetable, allstops):
         frame['zespol'] = frame['zespol'].astype(str)
         frame['slupek'] = frame['slupek'].astype(str)
 
+    timetable = timetable.merge(allstops, on=['zespol', 'slupek'])
     
-    df['czas'] = pd.to_datetime(correct_hours(df['czas']))
+    timetable = timetable.drop(columns=['trasa', 'id_ulicy', 'kierunek_x', 'obowiazuje_od', 'kierunek_y'], 
+                               axis=1)
     
-    df = df.merge(allstops, on=['zespol', 'slupek'])
-    
-    df = df.drop(labels=['trasa', 'id_ulicy', 'kierunek_x', 'obowiazuje_od', 'kierunek_y', 'nazwa_zespolu'], axis=1)
+           
+    timetable['czas'] = pd.to_datetime(correct_hours(timetable['czas']))
+    timetable['czas'] = timetable['czas'].dt.time
+    timetable['brygadaH'] = timetable['brygada'].apply(hash)
+    timetable['lineH'] = timetable['line'].apply(hash)
     
     global all_positions
     all_positions = pd.read_csv(f"{path}/DATA/LIVE/positions_all.csv")
     
-    all_positions['Time'] = pd.to_datetime(all_positions['Time'])
+    
+    all_positions['Time'] = pd.to_datetime(all_positions['Time']).dt.time
     all_positions['Brigade'] = all_positions['Brigade'].apply(hash)
     all_positions['Lines'] = all_positions['Lines'].apply(hash) 
-       
-    df['brygadaH'] = df['brygada'].apply(hash)
-    df['lineH'] = df['line'].apply(hash)
-    df = df.head(1000)
     
-    df['earliness'] = bus_status(df['szer_geo'], 
-                                 df['dlug_geo'], 
-                                 df['lineH'], 
-                                 df['brygadaH'], 
-                                 df['czas']
+    timetable = timetable.head(1000)
+    
+    timetable['earliness'] = bus_status(timetable['szer_geo'], 
+                                 timetable['dlug_geo'], 
+                                 timetable['lineH'], 
+                                 timetable['brygadaH'], 
+                                 timetable['czas'],
+                                 timetable['line']
                             )
     
-    df.to_csv("earliness_test.csv")
-    fd = df['earliness'].count()
-    return fd/df.size
+    timetable = timetable.drop(columns=['brygadaH', 'lineH'], axis=1)
+    
+    timetable.to_csv("earliness_all.csv")
+    
+    fd = timetable['earliness'].count()
+    return fd/timetable.size
