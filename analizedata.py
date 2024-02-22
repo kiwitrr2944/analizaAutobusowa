@@ -3,6 +3,7 @@ import pandas as pd
 import getdata as gd
 import os
 import glob
+import matplotlib.pyplot as plt
 
 REASONABLE_SPEED_INFINITY = 120
 MAX_TIME_ELAPSED = 60.0
@@ -248,7 +249,18 @@ def earliness():
 
     timetable = timetable.drop(columns=['brygadaH', 'lineH'], axis=1)
 
-    timetable.to_csv("earliness_all.csv")
+    timetable.to_csv(f"{os.getcwd()}/DATA/LIVE/earliness_all.csv")
 
     fd = timetable['earliness'].count()
     return fd/timetable.size
+
+
+def earliness_by_stop():
+    # earliness()
+    df = pd.read_csv(f"{os.getcwd()}/DATA/LIVE/earliness_all.csv")
+    df = df.dropna()
+
+    df = df.groupby(['nazwa_zespolu', 'slupek'])['earliness'].mean()
+    df.to_csv("test_bez.csv")
+    df.plot(x='nazwa_zespolu', y='earliness', kind='bar')
+    plt.show()
