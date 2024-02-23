@@ -183,11 +183,7 @@ def bus_earliness(
                               found['Lat']-lat
                               )
 
-    # found['slat'] = lat
-    # found['slon'] = lon
-
     found = found[found['dist'] <= 100.0]
-    # print(found[['Lat', 'Lon', 'slat', 'slon', 'dist']])
     if found.size == 0:
         return np.NaN
 
@@ -273,61 +269,67 @@ def stop_line_prepare() -> dict:
     return stop_lines['line']
 
 
-def calc_intersect(a: tuple, b: tuple, stop_lines) -> int:
+def calc_intersect(a: tuple, b: tuple) -> int:
     try:
-        a_lines = stop_lines[a]
+        a_lines = stop_lines.get(a, [])
     except KeyError:
         a_lines = []
     try:
-        b_lines = stop_lines[b]
+        b_lines = stop_lines.get(b, [])
     except KeyError:
         b_lines = []
+
     return len(set(a_lines).intersection(b_lines))
 
 
-def calc_dist2(lat, dlon, dlat) -> float:
-    lat, dlon, dlat = (np.radians(x) for x in (lat, dlon, dlat))
-    a = np.sin(dlat/2)**2 + np.cos(lat) * np.cos(lat+dlat) * np.sin(dlon/2)**2
-    c = 2 * np.arcsin(np.sqrt(a))
-    r = 6371000.0
-    return c*r
-
-
 def distant_stops(k: int) -> list[dict]:
+    global stop_lines
     stop_lines = stop_line_prepare()
     allstops = pd.read_csv(f"{os.getcwd()}/DATA/allstops.csv")
     res_list = []
+    allstops = allstops.drop(axis=1,
+                             labels=['kierunek', 'obowiazuje_od', 'id_ulicy'])
+
+    df1 = allstops.copy()
+    df2 = allstops.copy()
+
+    allstops = pd.merge(df1, df2, how='cross')
+
+    allstops = allstops[allstops['zespol_x'] != allstops['zespol_y']]
+
+    allstops = allstops.rename(columns={
+        'zespol_x': 'a_zespol',
+        'slupek_x': 'a_slupek',
+        'szer_geo_x': 'a_szer_geo',
+        'dlug_geo_x': 'a_dlug_geo',
+        'nazwa_zespolu_x': 'a_nazwa_zespolu',
+        'zespol_y': 'b_zespol',
+        'slupek_y': 'b_slupek',
+        'szer_geo_y': 'b_szer_geo',
+        'dlug_geo_y': 'b_dlug_geo',
+        'nazwa_zespolu_y': 'b_nazwa_zespolu'
+    })
+
+    allstops['distance'] = calc_dist(
+                                allstops['a_szer_geo'],
+                                allstops['a_dlug_geo']-allstops['b_dlug_geo'],
+                                allstops['a_szer_geo']-allstops['b_szer_geo']
+                                )
+    intersects = []
+
+    for i in range(len(allstops)):
+        p = allstops.iloc[i]
+
+        intersects.append(calc_intersect((p['a_zespol'], p['a_slupek']),
+                                         (p['b_zespol'], p['b_slupek'])))
+
+    allstops['intersect'] = intersects
 
     for i in range(1, k):
-        max_dist = 0
-        res = []
-        for i in range(len(allstops)):
-            a_stop = allstops.iloc[i]
-            a_lat = a_stop['szer_geo']
-            a_lon = a_stop['dlug_geo']
-
-            for j in range(len(allstops)):
-                b_stop = allstops.iloc[j]
-                b_lat = b_stop['szer_geo']
-                b_lon = b_stop['dlug_geo']
-
-                s = calc_intersect((a_stop['zespol'], a_stop['slupek']),
-                                   (b_stop['zespol'], b_stop['slupek']),
-                                   stop_lines)
-                if s >= i:
-                    distance = calc_dist2(a_lat, a_lon-b_lon, a_lat-b_lat)
-
-                    if distance > max_dist:
-                        max_dist = distance
-                        res = dict({
-                            'a_point': (a_lat, a_lon),
-                            'b_point': (b_lat, b_lon),
-                            'a_name': (a_stop['zespol'], a_stop['slupek']),
-                            'b_name': (b_stop['zespol'], b_stop['slupek']),
-                            'match': str(i),
-                            'a_fname': a_stop['nazwa_zespolu'],
-                            'b_fname': b_stop['nazwa_zespolu']
-                        })
-        res_list.append(res)
+        allstops_c = allstops[allstops['intersect'] >= i]
+        allstops_c = allstops_c.sort_values(by='distance', ascending=False)
+        allstops_c = allstops_c.iloc[0]
+        allstops_c['intersect'] = min(i, allstops_c['intersect'])
+        res_list.append(allstops_c.to_dict())
 
     return res_list
