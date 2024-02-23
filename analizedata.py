@@ -16,6 +16,16 @@ def calc_speed(dist, time) -> float:
 
 
 def speed_for_line(line: str, save: bool = False) -> pd.DataFrame:
+    """For all bus positions calculates its speed at the moment
+
+    Args:
+        line (str): line to calculate
+        save (bool, optional): defines if save to .csv is done.
+        Defaults to False.
+
+    Returns:
+        pd.DataFrame: returns dataframe with all moments and speeds.
+    """
     path = os.getcwd()
     path = f"{path}/DATA/LIVE/LINES/{line}.csv"
 
@@ -71,6 +81,18 @@ def speed_for_line(line: str, save: bool = False) -> pd.DataFrame:
 
 
 def sle_line(line: str, limit: float = 50, max_t: float = 60) -> pd.DataFrame:
+    """Filters those moments in bus position when speed was exceeded
+
+    Args:
+        line (str): line to track
+        limit (float, optional):  Defaults to 50.
+        max_t (float, optional): maximum time between two positions.
+        that is considered to be straight line drive.
+        Defaults to 60.
+
+    Returns:
+        pd.DataFrame: all moments with speed limit exceeded
+    """
     try:
         file = f"./DATA/LIVE/LINES/SPEED/{line}.csv"
         res_df = pd.read_csv(file)
@@ -87,6 +109,11 @@ def sle_line(line: str, limit: float = 50, max_t: float = 60) -> pd.DataFrame:
 
 
 def sle_all() -> pd.DataFrame:
+    """Computes sle_line() for all lines
+
+    Returns:
+        pd.DataFrame: All speedings combined
+    """
     path = os.getcwd()
     lines = glob.glob(f"{path}/DATA/ROUTES/*")
     ret_list = []
@@ -101,6 +128,12 @@ def sle_all() -> pd.DataFrame:
 
 
 def speed_grid() -> pd.DataFrame:
+    """Creates a grid with a point every 0.005 degree.
+       For each point average speed around it is calculated.
+
+    Returns:
+        pd.DataFrame: dataframe with gridpoint coordinates and avg speed.
+    """
     files = glob.glob(f"{os.getcwd()}/DATA/LIVE/LINES/SLE/*.csv")
 
     df = pd.concat([pd.read_csv(file) for file in files], ignore_index=True)
@@ -133,6 +166,16 @@ def speed_grid() -> pd.DataFrame:
 
 @np.vectorize
 def calc_dist(lat, dlon, dlat):
+    """Calculates distance using haversine formula
+
+    Args:
+        lat (_type_): latitude
+        dlon (_type_): difference between longitudes
+        dlat (_type_): difference between latitudes
+
+    Returns:
+        _type_: 
+    """
     lat, dlon, dlat = (np.radians(x) for x in (lat, dlon, dlat))
     a = np.sin(dlat/2)**2 + np.cos(lat) * np.cos(lat+dlat) * np.sin(dlon/2)**2
     c = 2 * np.arcsin(np.sqrt(a))
@@ -142,6 +185,8 @@ def calc_dist(lat, dlon, dlat):
 
 @np.vectorize
 def correct_hours(time_str):
+    """Corects hour from timetable to be numpy-friendly (no 27:00:00)
+    """
     hours, minutes, seconds = map(int, time_str.split(':'))
     if hours >= 24:
         hours -= 24
@@ -150,6 +195,15 @@ def correct_hours(time_str):
 
 @np.vectorize
 def timediff(time1, time2) -> float:
+    """Computes time difference between two times
+
+    Args:
+        time1
+        time2
+
+    Returns:
+        float: time difference in seconds
+    """
     hdiff = time1.hour - time2.hour
     mdiff = time1.minute - time2.minute
     sdiff = time1.second - time2.second
@@ -162,6 +216,9 @@ def bus_earliness(
                   line: np.int64, brigade: np.int64,
                   time
                 ):
+    """Finds a bus position that matches timetable event the most, then
+       returns lateness in seconds.
+    """
     found = all_positions.loc[
                               (all_positions['Lines'] == line) &
                               (all_positions['Brigade'] == brigade)
@@ -192,7 +249,12 @@ def bus_earliness(
     return found['timediff'].iloc[0]
 
 
-def earliness():
+def earliness() -> float:
+    """Computes earliness for every event in a timetable
+
+    Returns:
+        float: percent of matched timetable events to any bus.
+    """
     pd.options.mode.chained_assignment = None
 
     path = os.curdir
@@ -249,7 +311,15 @@ def earliness():
 
 
 def earliness_by(cols: list[str]) -> pd.DataFrame:
-    # earliness()
+    """Groups earliness by given key (for example computes
+    avg earliness on stop.)
+
+    Args:
+        cols (list[str]): key to group
+
+    Returns:
+        pd.DataFrame:
+    """
     df = pd.read_csv(f"{os.getcwd()}/DATA/LIVE/earliness_all.csv")
     df = df.dropna()
     df = df.groupby(cols)['earliness'].mean().reset_index()
@@ -259,6 +329,11 @@ def earliness_by(cols: list[str]) -> pd.DataFrame:
 
 
 def stop_line_prepare() -> dict:
+    """Gets (complex, no) -> list of lines avaiable dictionary
+
+    Returns:
+        dict:
+    """
     lines = pd.read_csv(f"{os.getcwd()}/DATA/timetable_all.csv")
     lines = lines.drop(axis=1,
                        labels=['trasa', 'czas', 'kierunek', 'brygada'])
@@ -270,6 +345,15 @@ def stop_line_prepare() -> dict:
 
 
 def calc_intersect(a: tuple, b: tuple) -> int:
+    """For two stops computes how many lines are on both of them
+
+    Args:
+        a (tuple): (a_id, a_no)
+        b (tuple): (b_id, b_no)
+
+    Returns:
+        int: no of common lines
+    """
     try:
         a_lines = stop_lines.get(a, [])
     except KeyError:
@@ -283,6 +367,15 @@ def calc_intersect(a: tuple, b: tuple) -> int:
 
 
 def distant_stops(k: int) -> list[dict]:
+    """for every i in (1, k] finds pair of furthest stops that 
+        have at least i stops in common
+
+    Args:
+        k (int):
+
+    Returns:
+        list[dict]: i-th dictionary stores data about the i-th pair
+    """
     global stop_lines
     stop_lines = stop_line_prepare()
     allstops = pd.read_csv(f"{os.getcwd()}/DATA/allstops.csv")
@@ -325,7 +418,7 @@ def distant_stops(k: int) -> list[dict]:
 
     allstops['intersect'] = intersects
 
-    for i in range(1, k):
+    for i in range(1, k+1):
         allstops_c = allstops[allstops['intersect'] >= i]
         allstops_c = allstops_c.sort_values(by='distance', ascending=False)
         allstops_c = allstops_c.iloc[0]
